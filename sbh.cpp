@@ -190,11 +190,12 @@ fetch_ofp(void)
 #else
     gmtime_r(&tg, &tm);
 #endif
-    char line[100];
+    char line[200];
     // strftime does not work for whatever reasons
-    sprintf(line, "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-                   ofp_info.icao_airline, ofp_info.flight_number, ofp_info.aircraft_icao, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-                   tm.tm_hour, tm.tm_min, tm.tm_sec);
+    snprintf(line, sizeof(line), 
+             "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
+             ofp_info.icao_airline, ofp_info.flight_number, ofp_info.aircraft_icao, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     XPSetWidgetDescriptor(status_line, line);
     ofp_info.valid = 1;
@@ -277,7 +278,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
 
 #define DL(COL, TXT) \
     if (COL == 0) y -= 15; \
-    XPLMDrawString(label_color, left_col[COL], y, TXT, NULL, xplmFont_Proportional)
+    XPLMDrawString(label_color, left_col[COL], y, (char *)TXT, NULL, xplmFont_Proportional)
 
 #define DX(COL, FIELD) \
     XPLMDrawString(xfer_color, right_col[COL], y, ofp_info.FIELD, NULL, xplmFont_Basic)
@@ -584,7 +585,7 @@ XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *
                 char path[512];
 
                 XPLMGetNthAircraftModel(XPLM_USER_AIRCRAFT, acf_file, path);
-                log_msg(acf_file);
+                log_msg("acf_file: %s", acf_file);
 
                 acf_file[4] = '\0';
                 for (int i = 0; i < 4; i++)

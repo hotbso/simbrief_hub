@@ -1,0 +1,40 @@
+
+include version.mak
+include Makefile.common
+
+OBJDIR=./build/lx
+
+TARGET=build/lin.xpl
+HEADERS=$(wildcard *.h)
+OBJECTS=$(SOURCES_C:.c=.o) $(SOURCES_CPP:.cpp=.o)
+
+CC=gcc
+CXX=g++
+LD=g++
+
+COMMON_CFLAGS=$(OPT) -DVERSION=\"$(VERSION)\" \
+    -Wall -Wno-format-overflow -Wno-format-truncation \
+    $(INCLUDES) $(DEFINES) -fPIC -DLIN=1 -fno-stack-protector
+CFLAGS=$(COMMON_CFLAGS)
+CXXFLAGS:=$(CXXSTD) $(CFLAGS)
+
+OBJECTS:=$(addprefix $(OBJDIR)/, $(OBJECTS))
+#$(info $(OBJECTS))
+
+LDFLAGS=-shared -rdynamic -nodefaultlibs -undefined_warning
+LIBS=-lcurl
+
+all: $(TARGET)
+    $(shell [ -d $(OBJDIR) ] || mkdir -p $(OBJDIR))
+
+$(OBJDIR)/%.o: %.c version.mak $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+$(OBJDIR)/%.o: %.cpp version.mak $(HEADERS)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(TARGET): $(OBJECTS)
+	$(LD) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LIBS)
+
+clean:
+	rm -f $(TARGET) $(OBJDIR)/*.o*

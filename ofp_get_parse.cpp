@@ -60,7 +60,7 @@ dump_ofp_info(ofp_info_t *ofp_info)
         L(sb_path);
         L(time_generated);
     } else {
-        log_msg(ofp_info->status);
+        log_msg("%s", ofp_info->status);
     }
 }
 
@@ -69,8 +69,8 @@ static int
 get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *text_start, int *text_end)
 {
     char stag[50], etag[50];
-    sprintf(stag, "<%s>", tag);
-    sprintf(etag, "</%s>", tag);
+    snprintf(stag, sizeof(stag), "<%s>", tag);
+    snprintf(etag, sizeof(etag), "</%s>", tag);
 
     char *s = strstr(xml + start_ofs, stag);
     if (NULL == s)
@@ -109,7 +109,7 @@ OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info)
     memset(ofp_info, 0, sizeof(*ofp_info));
 
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
-    // log_msg(url);
+    // log_msg("%s", url);
 
     std::string ofp_data;
     ofp_data.reserve(250 * 1024);
@@ -122,7 +122,6 @@ OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info)
 
     int ofp_len = ofp_data.length();
     log_msg("got ofp %d bytes", ofp_len);
-
 
     char *ofp = (char *)ofp_data.c_str();
     int out_s, out_e;
@@ -189,8 +188,8 @@ OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info)
 }
 
 #ifdef TEST_SB_PARSE
-// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O OfpGetParse.cpp http_get.c log_msg.cpp
-
+// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c log_msg.cpp -lwinhttp
+// g++ --std=c++20 -Wall -DLIN=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c log_msg.cpp -lcurl
 #include <ctime>
 
 char sbh_tmp_fn[] = "xml.tmp";
@@ -222,7 +221,7 @@ main(int argc, char** argv)
     gmtime_r(&tg, &tm);
 #endif
     char line[100];
-    sprintf(line, "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
+    snprintf(line, sizeof(line), "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
                    tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                    tm.tm_hour, tm.tm_min, tm.tm_sec);
     log_msg("'%s'", line);

@@ -149,12 +149,18 @@ error_out:
 
 #else   // Linux or MacOS
 #include <curl/curl.h>
-bool
-HttpGet(const char *url, FILE *f, int *ret_len, int timeout)
+static size_t
+write_cb(const void *ptr, size_t size, size_t nmemb, void *userdata)
 {
-    if (ret_len)
-        *ret_len = 0;
+    auto len = size * nmemb;
+    std::string *data = static_cast<std::string *>(userdata);
+    data->append((const char *)ptr, len);
+    return len;
+}
 
+bool
+HttpGet(const std::string& url, std::string& data, int timeout)
+{
     CURL *curl;
     CURLcode res;
     curl_global_init(CURL_GLOBAL_ALL);
@@ -162,10 +168,10 @@ HttpGet(const char *url, FILE *f, int *ret_len, int timeout)
     if(curl == NULL)
         return 0;
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&data);
 
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -183,9 +189,6 @@ HttpGet(const char *url, FILE *f, int *ret_len, int timeout)
     res = curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD_T , &dl_size);
     if(res == CURLE_OK)
         log_msg("Downloaded %d bytes", (int)dl_size);
-
-    if (ret_len)
-        *ret_len = dl_size;
 
     curl_easy_cleanup(curl);
     curl_global_cleanup();
