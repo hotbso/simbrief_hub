@@ -22,7 +22,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
-#include <cerrno>
+#include <string>
 
 #include "sbh.h"
 
@@ -103,52 +103,34 @@ do { \
     } \
 } while (0)
 
-int
-ofp_get_parse(const char *pilot_id, ofp_info_t *ofp_info)
+bool
+OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info)
 {
-    char *ofp = NULL;
-    FILE *f = NULL;
-
     memset(ofp_info, 0, sizeof(*ofp_info));
-    int ofp_len;
 
-    char url[100];
-    sprintf(url, "https://www.simbrief.com/api/xml.fetcher.php?userid=%s", pilot_id);
+    std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
     // log_msg(url);
 
-    f = fopen(sbh_tmp_fn, "wb+");
-    // is unrealiable on windows: FILE *f = tmpfile();
+    std::string ofp_data;
+    ofp_data.reserve(250 * 1024);
+    bool res = HttpGet(url, ofp_data, 10);
 
-    if (NULL == f) {
-        log_msg("Can't create temporary file");
-        return 0;
-    }
-
-    int res = HttpGet(url, f, &ofp_len, 10);
-
-    if (0 == res) {
+    if (! res) {
         strcpy(ofp_info->status, "Network error");
-        goto out;
+        return false;
     }
 
+    int ofp_len = ofp_data.length();
     log_msg("got ofp %d bytes", ofp_len);
-    rewind(f);
 
-    if (NULL == (ofp = (char *)malloc(ofp_len+1))) {    /* + space for a terminating 0 */
-        log_msg("can't malloc OFP xml buffer");
-        res = 0;
-        goto out;
-    }
 
-    ofp_len = fread(ofp, 1, ofp_len, f);
-    res = 1;
-    ofp[ofp_len] = '\0';
-
+    char *ofp = (char *)ofp_data.c_str();
     int out_s, out_e;
+
     if (POSITION("fetch")) {
         EXTRACT("status", status);
         if (strcmp(ofp_info->status, "Success")) {
-            goto out;
+            return false;
         }
     }
 
@@ -203,15 +185,11 @@ ofp_get_parse(const char *pilot_id, ofp_info_t *ofp_info)
         EXTRACT("est_time_enroute", est_time_enroute);
     }
 
-out:
-    if (ofp) free(ofp);
-    if (f) fclose(f);
-    unlink(sbh_tmp_fn);   /* unchecked */
-    return res;
+    return true;
 }
 
 #ifdef TEST_SB_PARSE
-// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c log_msg.cpp
+// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O OfpGetParse.cpp http_get.c log_msg.cpp
 
 #include <ctime>
 
@@ -233,7 +211,7 @@ main(int argc, char** argv)
     strncpy(pilot_id, argv[1], sizeof(pilot_id) - 1);
 
     ofp_info_t ofp_info;
-    ofp_get_parse(pilot_id, &ofp_info);
+    OfpGetParse(pilot_id, &ofp_info);
     dump_ofp_info(&ofp_info);
     time_t tg = atol(ofp_info.time_generated);
     log_msg("tg %ld", (long)tg);

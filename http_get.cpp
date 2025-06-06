@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <cstdio>
+#include <string>
 
 #include "sbh.h"
 
@@ -28,7 +29,7 @@
 #include <WinHttp.h>
 
 bool
-HttpGet(const char *url, FILE *f, int *ret_len, int timeout)
+HttpGet(const std::string& url, std::string& data, int timeout)
 {
     DWORD dwSize = 0;
     DWORD dwDownloaded = 0;
@@ -37,16 +38,14 @@ HttpGet(const char *url, FILE *f, int *ret_len, int timeout)
                hConnect = NULL,
                hRequest = NULL;
 
-    int result = 0;
-    if (ret_len)
-        *ret_len = 0;
+    int result = false;
 
-    int url_len = strlen(url);
+    int url_len = url.length();
     WCHAR *url_wc = (WCHAR *)alloca((url_len + 1) * sizeof(WCHAR));
     WCHAR *host_wc = (WCHAR *)alloca((url_len + 1) * sizeof(WCHAR));
     WCHAR *path_wc = (WCHAR *)alloca((url_len + 1) * sizeof(WCHAR));
 
-    mbstowcs_s(NULL, url_wc, url_len + 1, url, _TRUNCATE);
+    mbstowcs_s(NULL, url_wc, url_len + 1, url.c_str(), _TRUNCATE);
 
     URL_COMPONENTS urlComp;
     memset(&urlComp, 0, sizeof(urlComp));
@@ -131,21 +130,12 @@ HttpGet(const char *url, FILE *f, int *ret_len, int timeout)
                goto error_out;
             }
 
-            if (NULL != f) {
-                fwrite(buffer, 1, dwDownloaded, f);
-                if (ferror(f)) {
-                    log_msg("error wrinting file");
-                    goto error_out;
-                }
-            }
-
+            data.append(buffer, dwDownloaded);
             dwSize -= dwDownloaded;
-            if (ret_len)
-                *ret_len += dwDownloaded;
         }
     }
 
-    result = 1;
+    result = true;
 
 error_out:
     // Close any open handles.
@@ -153,7 +143,7 @@ error_out:
     if (hConnect) WinHttpCloseHandle(hConnect);
     if (hSession) WinHttpCloseHandle(hSession);
 
-    log_msg("tlsb_http_get result: %d", result);
+    log_msg("sbh_http_get result: %d", result);
     return result;
 }
 

@@ -19,8 +19,7 @@
 //    USA
 //
 
-#include <stdio.h>
-#include <stdarg.h>
+#include <string>
 
 #define XPLM200
 #define XPLM210
@@ -58,11 +57,8 @@ typedef struct _ofp_info
     char est_time_enroute[11];
 } ofp_info_t;
 
-/* tmpfile is unreliable on windows so we use this as filename */
-extern char sbh_tmp_fn[];
-
-extern int ofp_get_parse(const char *pilot_id, ofp_info_t *ofp_info);
+extern bool OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info);
 extern void dump_ofp_info(ofp_info_t *ofp_info);
-extern bool HttpGet(const char *url, FILE *f, int *retlen, int timeout);
+extern bool HttpGet(const std::string& url, std::string& data, int timeout);
 extern void log_msg(const char *fmt, ...)  __attribute__ ((format (printf, 1, 2)));
 

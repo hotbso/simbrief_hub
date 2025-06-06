@@ -45,8 +45,6 @@ static float flight_loop_cb(float unused1, float unused2, int unused3, void *unu
 static char xpdir[512];
 static const char *psep;
 
-char sbh_tmp_fn[512];
-
 #define MSG_GET_OFP (xpMsg_UserStart + 1)
 static XPWidgetID getofp_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
@@ -177,7 +175,7 @@ fetch_ofp(void)
 
     ofp_info.valid = 0;
 
-    ofp_get_parse(pilot_id, &ofp_info);
+    OfpGetParse(pilot_id, &ofp_info);
     dump_ofp_info(&ofp_info);
 
     if (strcmp(ofp_info.status, "Success")) {
@@ -530,8 +528,6 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
 
     psep = XPLMGetDirectorySeparator();
     XPLMGetSystemPath(xpdir);
-    snprintf(sbh_tmp_fn, sizeof(sbh_tmp_fn), "%s%sOutput%sbh_download.tmp",
-             xpdir, psep, psep);
 
     // map standard datarefs
     vr_enabled_dr = XPLMFindDataRef("sim/graphics/VR/enabled");
