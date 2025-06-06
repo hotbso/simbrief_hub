@@ -58,7 +58,7 @@ typedef struct _widget_ctx
 
 static widget_ctx_t getofp_widget_ctx, conf_widget_ctx;
 
-static ofp_info_t ofp_info;
+static OfpInfo ofp_info;
 
 static XPLMDataRef vr_enabled_dr, acf_icao_dr;
 
@@ -74,7 +74,6 @@ static int error_disabled;
 
 static char pref_path[512];
 static char pilot_id[20];
-static char acf_file[256];
 static char msg_line_1[100], msg_line_2[100], msg_line_3[100];
 
 static void
@@ -120,7 +119,7 @@ show_widget(widget_ctx_t *ctx)
     ctx->t = (ctx->t + ctx->h < yr) ? ctx->t : (yr - ctx->h - 50);
     ctx->t = (ctx->t >= ctx->h) ? ctx->t : (yr / 2);
 
-    log_msg("show_widget: s: (%d, %d) -> (%d, %d), w: (%d, %d) -> (%d,%d)",
+    LogMsg("show_widget: s: (%d, %d) -> (%d, %d), w: (%d, %d) -> (%d,%d)",
            xl, yl, xr, yr, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
 
     XPSetWidgetGeometry(ctx->widget, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
@@ -128,13 +127,13 @@ show_widget(widget_ctx_t *ctx)
 
     int in_vr = (NULL != vr_enabled_dr) && XPLMGetDatai(vr_enabled_dr);
     if (in_vr) {
-        log_msg("VR mode detected");
+        LogMsg("VR mode detected");
         XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx->widget);
         XPLMSetWindowPositioningMode(window, xplm_WindowVR, -1);
         ctx->in_vr = 1;
     } else {
         if (ctx->in_vr) {
-            log_msg("widget now out of VR, map at (%d,%d)", ctx->l, ctx->t);
+            LogMsg("widget now out of VR, map at (%d,%d)", ctx->l, ctx->t);
             XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx->widget);
             XPLMSetWindowPositioningMode(window, xplm_WindowPositionFree, -1);
 
@@ -173,10 +172,10 @@ fetch_ofp(void)
 {
     msg_line_1[0] = msg_line_2[0] = msg_line_3[0] = '\0';
 
-    ofp_info.valid = 0;
+    ofp_info.valid = false;
 
-    OfpGetParse(pilot_id, &ofp_info);
-    dump_ofp_info(&ofp_info);
+    OfpGetParse(pilot_id, ofp_info);
+    DumpOfpInfo(ofp_info);
 
     if (strcmp(ofp_info.status, "Success")) {
         XPSetWidgetDescriptor(status_line, ofp_info.status);
@@ -192,13 +191,13 @@ fetch_ofp(void)
 #endif
     char line[200];
     // strftime does not work for whatever reasons
-    snprintf(line, sizeof(line), 
+    snprintf(line, sizeof(line),
              "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
              ofp_info.icao_airline, ofp_info.flight_number, ofp_info.aircraft_icao, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
              tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     XPSetWidgetDescriptor(status_line, line);
-    ofp_info.valid = 1;
+    ofp_info.valid = true;
     snprintf(ofp_info.altitude, sizeof(ofp_info.altitude), "%d", atoi(ofp_info.altitude) / 100);
     return 1;
 }
@@ -220,7 +219,7 @@ format_route(float *bg_color, char *rptr, int right_col, int y)
         rptr[ROUTE_BRK] = c;
 
         if (NULL == cptr) {
-            log_msg("Can't format route!");
+            LogMsg("Can't format route!");
             break;
         }
 
@@ -270,7 +269,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
         int left, top, right, bottom;
 
         XPGetWidgetGeometry(display_widget, &left, &top, &right, &bottom);
-        // log_msg("display_widget start %d %d %d %d", left, top, right, bottom);
+        // LogMsg("display_widget start %d %d %d %d", left, top, right, bottom);
 
         int left_col[2] = { left + 5, left + 180 };
         int right_col[2] = { left_col[0] + 75, left_col[1] + 75 };
@@ -478,7 +477,7 @@ fetch_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void 
     if (xplm_CommandBegin != phase)
         return 0;
 
-    log_msg("fetch cmd called");
+    LogMsg("fetch cmd called");
     create_widget();
     fetch_ofp();
     show_widget(&getofp_widget_ctx);
@@ -493,7 +492,7 @@ toggle_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void
     if (xplm_CommandBegin != phase)
         return 0;
 
-    log_msg("toggle cmd called");
+    LogMsg("toggle cmd called");
     create_widget();
 
     if (XPIsWidgetVisible(getofp_widget_ctx.widget)) {
@@ -507,9 +506,10 @@ toggle_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void
 
 // flight loop for delayed actions
 static float
-flight_loop_cb(float unused1, float unused2, int unused3, void *unused4)
+flight_loop_cb([[maybe_unused]] float unused1, [[maybe_unused]] float unused2,
+               [[maybe_unused]]int unused3, [[maybe_unused]]void *unused4)
 {
-    log_msg("flight loop: toggle iscs");
+    LogMsg("flight loop");
     return 0; // unschedule
 }
 
@@ -517,7 +517,7 @@ flight_loop_cb(float unused1, float unused2, int unused3, void *unused4)
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
 {
-    log_msg("startup " VERSION);
+    LogMsg("startup " VERSION);
 
     // Always use Unix-native paths on the Mac!
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);
@@ -582,14 +582,7 @@ XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *
     switch (in_msg) {
         case XPLM_MSG_PLANE_LOADED:
             if (in_param == 0) {
-                char path[512];
-
-                XPLMGetNthAircraftModel(XPLM_USER_AIRCRAFT, acf_file, path);
-                log_msg("acf_file: %s", acf_file);
-
-                acf_file[4] = '\0';
-                for (int i = 0; i < 4; i++)
-                    acf_file[i] = toupper(acf_file[i]);
+                LogMsg("plane loaded");
             }
         break;
     }

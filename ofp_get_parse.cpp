@@ -33,10 +33,10 @@
 #endif
 
 void
-dump_ofp_info(ofp_info_t *ofp_info)
+DumpOfpInfo(const OfpInfo& ofp_info)
 {
-    if (0 == strcmp(ofp_info->status, "Success")) {
-#define L(field) log_msg(#field ": %s", ofp_info->field)
+    if (0 == strcmp(ofp_info.status, "Success")) {
+#define L(field) LogMsg(#field ": %s", ofp_info.field)
         L(units);
         L(icao_airline);
         L(flight_number);
@@ -60,11 +60,11 @@ dump_ofp_info(ofp_info_t *ofp_info)
         L(sb_path);
         L(time_generated);
     } else {
-        log_msg("%s", ofp_info->status);
+        LogMsg("%s", ofp_info.status);
     }
 }
 
-/* super simple xml extractor */
+// super simple xml extractor
 static int
 get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *text_start, int *text_end)
 {
@@ -78,7 +78,7 @@ get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *te
 
     s += strlen(stag);
 
-    /* don't run over end_ofs */
+    // don't run over end_ofs
     int c = xml[end_ofs];
     xml[end_ofs] = '\0';
     char *e = strstr(s, etag);
@@ -99,36 +99,36 @@ get_element_text(ofp, 0, ofp_len, tag, &out_s, &out_e)
 do { \
     int s, e; \
     if (get_element_text(ofp, out_s, out_e, tag, &s, &e)) { \
-        strncpy(ofp_info->field, ofp + s, MIN((int)sizeof(ofp_info->field), e - s)); \
+        strncpy(ofp_info.field, ofp + s, MIN((int)sizeof(ofp_info.field), e - s)); \
     } \
 } while (0)
 
 bool
-OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info)
+OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
 {
-    memset(ofp_info, 0, sizeof(*ofp_info));
+    ofp_info = {};
 
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
-    // log_msg("%s", url);
+    // LogMsg("%s", url);
 
     std::string ofp_data;
     ofp_data.reserve(250 * 1024);
     bool res = HttpGet(url, ofp_data, 10);
 
     if (! res) {
-        strcpy(ofp_info->status, "Network error");
+        strcpy(ofp_info.status, "Network error");
         return false;
     }
 
     int ofp_len = ofp_data.length();
-    log_msg("got ofp %d bytes", ofp_len);
+    LogMsg("got ofp %d bytes", ofp_len);
 
     char *ofp = (char *)ofp_data.c_str();
     int out_s, out_e;
 
     if (POSITION("fetch")) {
         EXTRACT("status", status);
-        if (strcmp(ofp_info->status, "Success")) {
+        if (strcmp(ofp_info.status, "Success")) {
             return false;
         }
     }
@@ -188,32 +188,29 @@ OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info)
 }
 
 #ifdef TEST_SB_PARSE
-// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c log_msg.cpp -lwinhttp
-// g++ --std=c++20 -Wall -DLIN=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c log_msg.cpp -lcurl
+// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c LogMsg.cpp -lwinhttp
+// g++ --std=c++20 -Wall -DLIN=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c LogMsg.cpp -lcurl
 #include <ctime>
-
-char sbh_tmp_fn[] = "xml.tmp";
-char pilot_id[20];
 
 //
 // call with
-// sbfetch_test pilot_id
+// a.[out,exe] pilot_id
 //
 int
 main(int argc, char** argv)
 {
     if (argc < 2) {
-        log_msg("missing argument");
+        LogMsg("missing argument");
         exit(1);
     }
 
-    strncpy(pilot_id, argv[1], sizeof(pilot_id) - 1);
+    const std::string pilot_id = argv[1];
 
-    ofp_info_t ofp_info;
-    OfpGetParse(pilot_id, &ofp_info);
-    dump_ofp_info(&ofp_info);
+    OfpInfo ofp_info;
+    OfpGetParse(pilot_id, ofp_info);
+    DumpOfpInfo(ofp_info);
     time_t tg = atol(ofp_info.time_generated);
-    log_msg("tg %ld", (long)tg);
+    LogMsg("tg %ld", (long)tg);
     struct tm tm;
 #ifdef IBM
     gmtime_s(&tm, &tg);
@@ -224,7 +221,7 @@ main(int argc, char** argv)
     snprintf(line, sizeof(line), "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
                    tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                    tm.tm_hour, tm.tm_min, tm.tm_sec);
-    log_msg("'%s'", line);
+    LogMsg("'%s'", line);
 
     exit(0);
 }

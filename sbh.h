@@ -26,9 +26,9 @@
 #define XPLM300
 #define XPLM301
 
-typedef struct _ofp_info
+struct OfpInfo
 {
-    int valid;
+    bool valid;
     char units[10];
     char status[100];
     char icao_airline[6];
@@ -55,10 +55,10 @@ typedef struct _ofp_info
     char sb_path[200];
     char time_generated[11];
     char est_time_enroute[11];
-} ofp_info_t;
+};
 
-extern bool OfpGetParse(const std::string&& pilot_id, ofp_info_t *ofp_info);
-extern void dump_ofp_info(ofp_info_t *ofp_info);
+extern bool OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info);
+extern void DumpOfpInfo(const OfpInfo& ofp_info);
 extern bool HttpGet(const std::string& url, std::string& data, int timeout);
-extern void log_msg(const char *fmt, ...)  __attribute__ ((format (printf, 1, 2)));
+extern void LogMsg(const char *fmt, ...)  __attribute__ ((format (printf, 1, 2)));
 

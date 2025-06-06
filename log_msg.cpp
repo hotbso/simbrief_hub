@@ -34,7 +34,7 @@ XPLMDebugString(const char *str)
 #endif
 
 void
-log_msg(const char *fmt, ...)
+LogMsg(const char *fmt, ...)
 {
     char line[1024];
 
