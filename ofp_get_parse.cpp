@@ -35,8 +35,8 @@
 void
 DumpOfpInfo(const OfpInfo& ofp_info)
 {
-    if (0 == strcmp(ofp_info.status, "Success")) {
-#define L(field) LogMsg(#field ": %s", ofp_info.field)
+    if (ofp_info.status == "Success") {
+#define L(field) LogMsg(#field ": %s", ofp_info.field.c_str())
         L(units);
         L(icao_airline);
         L(flight_number);
@@ -60,7 +60,7 @@ DumpOfpInfo(const OfpInfo& ofp_info)
         L(sb_path);
         L(time_generated);
     } else {
-        LogMsg("%s", ofp_info.status);
+        LogMsg("%s", ofp_info.status.c_str());
     }
 }
 
@@ -99,15 +99,13 @@ get_element_text(ofp, 0, ofp_len, tag, &out_s, &out_e)
 do { \
     int s, e; \
     if (get_element_text(ofp, out_s, out_e, tag, &s, &e)) { \
-        strncpy(ofp_info.field, ofp + s, MIN((int)sizeof(ofp_info.field), e - s)); \
+        ofp_info.field = std::string(ofp + s, e - s); \
     } \
 } while (0)
 
 bool
 OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
 {
-    ofp_info = {};
-
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
     // LogMsg("%s", url);
 
@@ -116,7 +114,7 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
     bool res = HttpGet(url, ofp_data, 10);
 
     if (! res) {
-        strcpy(ofp_info.status, "Network error");
+        ofp_info.status = "Network error";
         return false;
     }
 
@@ -128,7 +126,7 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
 
     if (POSITION("fetch")) {
         EXTRACT("status", status);
-        if (strcmp(ofp_info.status, "Success")) {
+        if (ofp_info.status != "Success") {
             return false;
         }
     }
@@ -209,7 +207,7 @@ main(int argc, char** argv)
     OfpInfo ofp_info;
     OfpGetParse(pilot_id, ofp_info);
     DumpOfpInfo(ofp_info);
-    time_t tg = atol(ofp_info.time_generated);
+    time_t tg = atol(ofp_info.time_generated.c_str());
     LogMsg("tg %ld", (long)tg);
     struct tm tm;
 #ifdef IBM

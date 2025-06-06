@@ -26,6 +26,7 @@
 #include <cstring>
 #include <cstdio>
 #include <ctime>
+#include <memory>
 
 #include "sbh.h"
 
@@ -177,12 +178,12 @@ fetch_ofp(void)
     OfpGetParse(pilot_id, ofp_info);
     DumpOfpInfo(ofp_info);
 
-    if (strcmp(ofp_info.status, "Success")) {
-        XPSetWidgetDescriptor(status_line, ofp_info.status);
+    if (ofp_info.status != "Success") {
+        XPSetWidgetDescriptor(status_line, ofp_info.status.c_str());
         return 0; // error
     }
 
-    time_t tg = atol(ofp_info.time_generated);
+    time_t tg = atol(ofp_info.time_generated.c_str());
     struct tm tm;
 #ifdef WINDOWS
     gmtime_s(&tm, &tg);
@@ -193,18 +194,25 @@ fetch_ofp(void)
     // strftime does not work for whatever reasons
     snprintf(line, sizeof(line),
              "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-             ofp_info.icao_airline, ofp_info.flight_number, ofp_info.aircraft_icao, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             ofp_info.icao_airline.c_str(), ofp_info.flight_number.c_str(), ofp_info.aircraft_icao.c_str(),
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
              tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     XPSetWidgetDescriptor(status_line, line);
     ofp_info.valid = true;
-    snprintf(ofp_info.altitude, sizeof(ofp_info.altitude), "%d", atoi(ofp_info.altitude) / 100);
+    char buffer[100];
+    snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info.altitude.c_str()) / 100);
+    ofp_info.altitude = buffer;
     return 1;
 }
 
 static int
-format_route(float *bg_color, char *rptr, int right_col, int y)
+format_route(float *bg_color, const std::string& route, int right_col, int y)
 {
+    auto wroute = std::make_unique_for_overwrite<char []>(route.length() + 1);
+    char *rptr = wroute.get();
+    strcpy(rptr, route.c_str());
+
     // break route to this # of chars
 #define ROUTE_BRK 50
     while (1) {
@@ -280,10 +288,10 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
     XPLMDrawString(label_color, left_col[COL], y, (char *)TXT, NULL, xplmFont_Proportional)
 
 #define DX(COL, FIELD) \
-    XPLMDrawString(xfer_color, right_col[COL], y, ofp_info.FIELD, NULL, xplmFont_Basic)
+    XPLMDrawString(xfer_color, right_col[COL], y, ofp_info.FIELD.c_str(), NULL, xplmFont_Basic)
 
 #define DF(COL, FIELD) \
-    XPLMDrawString(bg_color, right_col[COL], y, ofp_info.FIELD, NULL, xplmFont_Basic)
+    XPLMDrawString(bg_color, right_col[COL], y, ofp_info.FIELD.c_str(), NULL, xplmFont_Basic)
 
 #define DS(COL, STR) \
     XPLMDrawString(bg_color, right_col[COL], y, STR, NULL, xplmFont_Basic)
@@ -297,26 +305,24 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
         y -= 30;
 
         // D(aircraft_icao);
-        snprintf(str, sizeof(str), "%s/%s", ofp_info.origin, ofp_info.origin_rwy);
-        DL(0, "Departure:"); DS(0, str);
-        snprintf(str, sizeof(str), "%s/%s", ofp_info.destination, ofp_info.destination_rwy);
-        DL(0, "Destination:"); DS(0, str);
+        DL(0, "Departure:"); DS(0, (ofp_info.origin + "/" + ofp_info.origin_rwy).c_str());
+        DL(0, "Destination:"); DS(0, (ofp_info.destination + "/" + ofp_info.destination_rwy).c_str());
         DL(0, "Route:");
 
-        y = format_route(bg_color, ofp_info.route, right_col[0], y);
+        y = format_route(bg_color, ofp_info.route.c_str(), right_col[0], y);
 
         DL(0, "Trip time");
         if (ofp_info.est_time_enroute[0]) {
-            int ttmin = (atoi(ofp_info.est_time_enroute) + 30) / 60;
+            int ttmin = (atoi(ofp_info.est_time_enroute.c_str()) + 30) / 60;
             snprintf(str, sizeof(str), "%02d%02d", ttmin / 60, ttmin % 60);
             DS(0, str);
         }
 
-        int tropopause = atoi(ofp_info.tropopause);
+        int tropopause = atoi(ofp_info.tropopause.c_str());
         snprintf(str, sizeof(str), "%d", (tropopause + 500)/1000 * 1000);
         DL(0, "CI:"); DF(0, ci); DL(1, "TROPO:"); DS(1, str);
 
-        int isa_dev = atoi(ofp_info.isa_dev);
+        int isa_dev = atoi(ofp_info.isa_dev.c_str());
         if (isa_dev < 0)
             snprintf(str, sizeof(str), "M%03d", -isa_dev);
         else
@@ -325,7 +331,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
         DL(0, "CRZ FL:"); DF(0, altitude); DL(1, "ISA:"); DS(1, str);
 
 
-        int wind_component = atoi(ofp_info.wind_component);
+        int wind_component = atoi(ofp_info.wind_component.c_str());
         if (wind_component < 0)
             snprintf(str, sizeof(str), "M%03d", -wind_component);
         else
@@ -336,7 +342,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
 
         DL(0, "Alternate:"); DF(0, alternate);
         DL(0, "Alt Route:");
-        y = format_route(bg_color, ofp_info.alt_route, right_col[0], y);
+        y = format_route(bg_color, ofp_info.alt_route.c_str(), right_col[0], y);
         y -= 5;
 
         if (msg_line_1[0]) {
