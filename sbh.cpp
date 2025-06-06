@@ -207,11 +207,9 @@ fetch_ofp(void)
 }
 
 static int
-format_route(float *bg_color, const std::string& route, int right_col, int y)
+format_route(float *bg_color, std::string& route, int right_col, int y)
 {
-    auto wroute = std::make_unique_for_overwrite<char []>(route.length() + 1);
-    char *rptr = wroute.get();
-    strcpy(rptr, route.c_str());
+    char *rptr = (char *)route.c_str();
 
     // break route to this # of chars
 #define ROUTE_BRK 50
@@ -309,7 +307,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
         DL(0, "Destination:"); DS(0, (ofp_info.destination + "/" + ofp_info.destination_rwy).c_str());
         DL(0, "Route:");
 
-        y = format_route(bg_color, ofp_info.route.c_str(), right_col[0], y);
+        y = format_route(bg_color, ofp_info.route, right_col[0], y);
 
         DL(0, "Trip time");
         if (ofp_info.est_time_enroute[0]) {
@@ -342,7 +340,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
 
         DL(0, "Alternate:"); DF(0, alternate);
         DL(0, "Alt Route:");
-        y = format_route(bg_color, ofp_info.alt_route.c_str(), right_col[0], y);
+        y = format_route(bg_color, ofp_info.alt_route, right_col[0], y);
         y -= 5;
 
         if (msg_line_1[0]) {
