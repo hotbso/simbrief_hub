@@ -1,0 +1,57 @@
+
+include version.mak
+include Makefile.common
+
+OBJDIR=./build/win
+TARGET=build/win.xpl
+OBJECTS:=$(SOURCES_C:.c=.o) $(SOURCES_CPP:.cpp=.o)
+
+# all sources to the dep files
+DEPFILES=$(SOURCES_CPP:%.cpp=$(DEPDIR)/%.d) $(SOURCES_C:%.c=$(DEPDIR)/%.d)
+
+DEPDIR := $(OBJDIR)/.deps
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
+
+OBJECTS:=$(addprefix $(OBJDIR)/, $(OBJECTS))
+#$(info $(OBJECTS))
+
+CC=gcc
+CXX=g++
+LD=g++
+
+COMMON_CFLAGS=$(OPT) -s -Wall -fdiagnostics-color -Wno-format-overflow \
+    -DIBM -DWINDOWS -DWIN32 \
+    -DVERSION=\"$(VERSION)\" \
+	$(INCLUDES) $(DEFINES)
+
+CFLAGS=-mdll $(COMMON_CFLAGS)
+CXXFLAGS:=$(CXXSTD) $(CFLAGS)
+LDFLAGS=-shared -static-libgcc -static
+LIBS=-L$(SDK)/Libraries/Win -lXPLM_64 -lXPWidgets_64 -lwinhttp
+
+COMPILE.cpp = $(CXX) $(CXXFLAGS) $(DEPFLAGS) -c
+COMPILE.c = $(CC) $(CFLAGS) $(DEPFLAGS) -c
+
+$(OBJDIR)/%.o: %.c $(DEPDIR)/%.d version.mak | $(DEPDIR)
+	$(COMPILE.c) $(CFLAGS) -o $@ -c $<
+
+$(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d version.mak | $(DEPDIR)
+	$(COMPILE.cpp) $(CXXFLAGS) -o $@ -c $<
+
+all: $(TARGET)
+    $(shell [ -d $(OBJDIR) ] || mkdir -p $(OBJDIR))
+
+XPL_DIR=/E/X-Plane-12-test
+PLUGDIR:=$(XPL_DIR)/Resources/plugins/simbrief_hub/win_x64
+
+$(TARGET): $(OBJECTS)
+	$(LD) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LIBS)
+	if [ -d $(PLUGDIR) ]; then cp -p build/win.xpl $(PLUGDIR)/simbrief_hub.xpl; fi
+
+$(DEPDIR): ; @mkdir -p $@
+
+$(DEPFILES):
+include $(wildcard $(DEPFILES))
+
+clean:
+	rm -f $(TARGET) $(OBJDIR)/*.o*
