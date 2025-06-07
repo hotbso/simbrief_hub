@@ -41,8 +41,6 @@
 #include "XPWidgets.h"
 #include "XPStandardWidgets.h"
 
-static float flight_loop_cb(float unused1, float unused2, int unused3, void *unused4);
-
 static char xpdir[512];
 static const char *psep;
 
@@ -62,13 +60,6 @@ static widget_ctx_t getofp_widget_ctx, conf_widget_ctx;
 static OfpInfo ofp_info;
 
 static XPLMDataRef vr_enabled_dr, acf_icao_dr;
-
-static XPLMCreateFlightLoop_t create_flight_loop =
-{
-    .structSize = sizeof(XPLMCreateFlightLoop_t),
-    .phase = xplm_FlightLoop_Phase_BeforeFlightModel,
-    .callbackFunc = flight_loop_cb
-};
 static XPLMFlightLoopID flight_loop_id;
 
 static int error_disabled;
@@ -103,7 +94,7 @@ load_pref()
 }
 
 static void
-show_widget(widget_ctx_t *ctx)
+ShowWidget(widget_ctx_t *ctx)
 {
     if (XPIsWidgetVisible(ctx->widget))
         return;
@@ -120,7 +111,7 @@ show_widget(widget_ctx_t *ctx)
     ctx->t = (ctx->t + ctx->h < yr) ? ctx->t : (yr - ctx->h - 50);
     ctx->t = (ctx->t >= ctx->h) ? ctx->t : (yr / 2);
 
-    LogMsg("show_widget: s: (%d, %d) -> (%d, %d), w: (%d, %d) -> (%d,%d)",
+    LogMsg("ShowWidget: s: (%d, %d) -> (%d, %d), w: (%d, %d) -> (%d,%d)",
            xl, yl, xr, yr, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
 
     XPSetWidgetGeometry(ctx->widget, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
@@ -388,7 +379,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 }
 
 static void
-create_widget()
+CreateWidget()
 {
     if (getofp_widget)
         return;
@@ -430,8 +421,8 @@ menu_cb(void *menu_ref, void *item_ref)
 {
     // create gui
     if (item_ref == &getofp_widget) {
-        create_widget();
-        show_widget(&getofp_widget_ctx);
+        CreateWidget();
+        ShowWidget(&getofp_widget_ctx);
         return;
     }
 
@@ -470,22 +461,20 @@ menu_cb(void *menu_ref, void *item_ref)
         }
 
         XPSetWidgetDescriptor(pilot_id_input, pilot_id);
-        show_widget(&conf_widget_ctx);
+        ShowWidget(&conf_widget_ctx);
         return;
     }
 }
 
 // call back for fetch cmd
 static int
-fetch_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *ref)
+FetchCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *ref)
 {
     if (xplm_CommandBegin != phase)
         return 0;
 
     LogMsg("fetch cmd called");
-    create_widget();
     FetchOfp();
-    show_widget(&getofp_widget_ctx);
     return 0;
 }
 
@@ -498,21 +487,22 @@ toggle_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void
         return 0;
 
     LogMsg("toggle cmd called");
-    create_widget();
+    CreateWidget();
 
     if (XPIsWidgetVisible(getofp_widget_ctx.widget)) {
         XPHideWidget(getofp_widget_ctx.widget);
         return 0;
     }
 
-    show_widget(&getofp_widget_ctx);
+    ShowWidget(&getofp_widget_ctx);
     return 0;
 }
 
 // flight loop for delayed actions
 static float
-flight_loop_cb([[maybe_unused]] float unused1, [[maybe_unused]] float unused2,
-               [[maybe_unused]]int unused3, [[maybe_unused]]void *unused4)
+FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
+             [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop, [[maybe_unused]] int inCounter,
+             [[maybe_unused]] void *inRefcon)
 {
     LogMsg("flight loop");
     return 0; // unschedule
@@ -593,7 +583,10 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     XPLMRegisterCommandHandler(cmdr, toggle_cmd_cb, 0, NULL);
 
     cmdr = XPLMCreateCommand("sbh/fetch", "Fetch ofp data and show in widget");
-    XPLMRegisterCommandHandler(cmdr, fetch_cmd_cb, 0, NULL);
+    XPLMRegisterCommandHandler(cmdr, FetchCmdCb, 0, NULL);
+
+    XPLMCreateFlightLoop_t create_flight_loop =
+        {sizeof(XPLMCreateFlightLoop_t), xplm_FlightLoop_Phase_BeforeFlightModel, FlightLoopCb, NULL};
     flight_loop_id = XPLMCreateFlightLoop(&create_flight_loop);
 
     DATA_DREF(units);
@@ -659,11 +652,8 @@ XPluginEnable(void)
 PLUGIN_API void
 XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *in_param)
 {
-    switch (in_msg) {
-        case XPLM_MSG_PLANE_LOADED:
-            if (in_param == 0) {
-                LogMsg("plane loaded");
-            }
-        break;
+    if (in_msg == XPLM_MSG_PLANE_LOADED && in_param == 0) {
+        LogMsg("plane loaded");
+        FetchOfp();
     }
 }
