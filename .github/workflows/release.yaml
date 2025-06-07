@@ -1,0 +1,154 @@
+name: Release
+
+# if the tag contains -test- the build is pushed into the build-test branch
+# so skunkcrafts does not see it
+
+# Controls when the workflow will run
+on:
+  push:
+    #    branches: [ main ]
+    tags:
+      - 'v*'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            make
+
+      - uses: actions/checkout@v3
+
+      - name: Build Windows binaries
+        shell: msys2 {0}
+        run: |
+          TAG=${GITHUB_REF##*/}
+          if [ ! -z "$TAG" ]; then
+            echo "VERSION=$TAG" > version.mak
+          fi
+          make -f Makefile.mgw64
+          ls -lR ./build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows
+          path: |
+            build/win.xpl
+
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Linux binaries
+        shell: bash
+        run: |
+          set -x
+          sudo apt-get -y install libcurl4-openssl-dev
+          TAG=${GITHUB_REF##*/}
+          if [ ! -z "$TAG" ]; then
+            echo "VERSION=$TAG" > version.mak
+          fi
+          make -f Makefile.lin64
+          ls -lR ./build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-linux
+          path: |
+            build/lin.xpl
+
+  build:
+    # The type of runner that the job will run on
+    runs-on: macos-13
+    needs: [build-windows, build-linux]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - run: |
+          set -x
+          TAG=${GITHUB_REF##*/}
+          if [ ! -z "$TAG" ]; then
+            echo "VERSION=$TAG" > version.mak
+          fi
+          make -f Makefile.mac64
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./download
+
+      - run: |
+          mkdir ./build/simbrief_hub
+          mv ./build/mac.xpl ./build/simbrief_hub/.
+          cp ./download/*/*.xpl ./build/simbrief_hub/.
+          ls -lR ./build/simbrief_hub
+
+      - run: |
+          cp -r bin ${{ github.workspace }}/build/simbrief_hub/
+          TAG=${GITHUB_REF##*/}
+          cp ${{ github.workspace }}/skunkcrafts_updater.cfg ${{ github.workspace }}/build/simbrief_hub/
+          cp ${{ github.workspace }}/skunkcrafts_updater_beta.cfg ${{ github.workspace }}/build/simbrief_hub/
+          sed -i '' "s/REPLACE_ME/${TAG}/g" ${{ github.workspace }}/build/simbrief_hub/skunkcrafts_updater.cfg
+          sed -i '' "s/REPLACE_ME/${TAG}/g" ${{ github.workspace }}/build/simbrief_hub/skunkcrafts_updater_beta.cfg
+          root=$(pwd)
+          cd ${{ github.workspace }}/build/ && zip -r xa-snow.zip simbrief_hub && cd $root
+      - run: |
+          cp -r ${{ github.workspace }}/build/simbrief_hub/ release/
+
+          # create crc32 checksum for all values and write to skunkcrafts_updater_whitelist.txt
+          # format is <filename>|<crc32 checksum>
+          # include subdirectories
+          rm -f release/skunkcrafts_updater_whitelist.txt
+          find release -type f ! \( -name '*skunkcrafts_updater*' -o -path '*skunkcrafts_updater*' \) -print0 | while IFS= read -r -d '' file; do
+            checksum_hex=$(crc32 "$file")
+            # Convert hex checksum to uint32 decimal
+            checksum_decimal=$((16#$checksum_hex))
+            # Remove "release/" prefix from $file
+            modified_file="${file#release/}"
+            echo "$modified_file|$checksum_decimal" >> release/skunkcrafts_updater_whitelist.txt
+          done
+          touch release/skunkcrafts_updater_blacklist.txt
+
+          TAG=${GITHUB_REF##*/}
+          TARGET_BRANCH="release"
+          if [[ $TAG == *"-test-"* ]]     # if TAG contains -test-
+          then
+              echo "This is a just a build test"
+              TARGET_BRANCH="build-test"
+          elif [[ $TAG == *"-"* ]]        # if TAG contains -
+          then
+              echo "This is a beta release"
+              TARGET_BRANCH="beta"
+          fi
+
+          git checkout -b ${TARGET_BRANCH}
+          git add .
+          git commit -m "new ${TARGET_BRANCH} - ${TAG}"
+          git push -f -u origin ${TARGET_BRANCH}
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          body_path: ${{ github.workspace }}/README.md
+          files: |
+            ${{ github.workspace }}/build/xa-snow.zip
+          prerelease: ${{ contains(github.ref_name, '-') }}
