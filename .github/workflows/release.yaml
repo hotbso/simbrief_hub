@@ -136,9 +136,9 @@ jobs:
 
             ## skunkcrafts
             sed -e "s|@VERSION@|${VERSION}|g" \
-                skunkcrafts_updater.cfg.template > "${RELEASE_FOLDER}/skunkcrafts_updater.cfg"
+                skunkcrafts_updater.cfg > "${RELEASE_FOLDER}/skunkcrafts_updater.cfg"
             sed -e "s|@VERSION@|${VERSION}|g" \
-              skunkcrafts_updater_beta.cfg.template > "${RELEASE_FOLDER}/skunkcrafts_updater_beta.cfg"
+              skunkcrafts_updater_beta.cfg > "${RELEASE_FOLDER}/skunkcrafts_updater_beta.cfg"
 
             find ${RELEASE_FOLDER}/ -type f ! \( -name '*skunkcrafts_updater*' -o -path '*skunkcrafts_updater*' \) -print0 | while IFS= read -r -d '' file; do
                 checksum_hex=$(crc32 "$file")
