@@ -41,6 +41,7 @@ jobs:
           if [ $OS == "macos-latest" ]; then
             make -f Makefile.mac64
           else
+            sudo apt-get -y install libcurl4-openssl-dev
             make -f Makefile.lin64
           fi
 
