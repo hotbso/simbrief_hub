@@ -169,7 +169,7 @@ conf_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 
 // return success == 1
 static int
-fetch_ofp(void)
+FetchOfp(void)
 {
     msg_line_1[0] = msg_line_2[0] = msg_line_3[0] = '\0';
 
@@ -200,6 +200,7 @@ fetch_ofp(void)
 
     XPSetWidgetDescriptor(status_line, line);
     ofp_info.valid = true;
+    ofp_info.seqno++;
     char buffer[100];
     snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info.altitude.c_str()) / 100);
     ofp_info.altitude = buffer;
@@ -243,7 +244,7 @@ format_route(float *bg_color, std::string& route, int right_col, int y)
 }
 
 static int
-getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
+GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
 {
     if (msg == xpMessage_CloseButtonPushed) {
         XPHideWidget(widget_id);
@@ -262,7 +263,7 @@ getofp_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, int
 
     // self sent message: fetch OFP (lengthy)
     if ((widget_id == getofp_widget) && (MSG_GET_OFP == msg)) {
-        (void)fetch_ofp();
+        (void)FetchOfp();
         return 1;
     }
 
@@ -407,13 +408,13 @@ create_widget()
     getofp_widget_ctx.widget = getofp_widget;
 
     XPSetWidgetProperty(getofp_widget, xpProperty_MainWindowHasCloseBoxes, 1);
-    XPAddWidgetCallback(getofp_widget, getofp_widget_cb);
+    XPAddWidgetCallback(getofp_widget, GetOfpWidgetCb);
     left += 5; top -= 25;
 
     int left1 = left + 10;
     getofp_btn = XPCreateWidget(left1, top, left1 + 60, top - 30,
                               1, "Fetch OFP", 0, getofp_widget, xpWidgetClass_Button);
-    XPAddWidgetCallback(getofp_btn, getofp_widget_cb);
+    XPAddWidgetCallback(getofp_btn, GetOfpWidgetCb);
 
     top -= 25;
     status_line = XPCreateWidget(left1, top, left + width - 10, top - 20,
@@ -421,7 +422,7 @@ create_widget()
 
     top -= 20;
     display_widget = XPCreateCustomWidget(left + 10, top, left + width -20, top - height + 10,
-                                           1, "", 0, getofp_widget, getofp_widget_cb);
+                                           1, "", 0, getofp_widget, GetOfpWidgetCb);
 }
 
 static void
@@ -483,7 +484,7 @@ fetch_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void 
 
     LogMsg("fetch cmd called");
     create_widget();
-    fetch_ofp();
+    FetchOfp();
     show_widget(&getofp_widget_ctx);
     return 0;
 }
@@ -517,7 +518,44 @@ flight_loop_cb([[maybe_unused]] float unused1, [[maybe_unused]] float unused2,
     return 0; // unschedule
 }
 
+// data accessor
+// ref = pointer to std::string
+static int
+DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
+{
+    if (!ofp_info.valid)
+        return 0;
+
+    std::string *data = static_cast<std::string *>(ref);
+    int len = data->length();
+    if (values == nullptr)
+        return len;
+
+    if (n <= 0 || ofs < 0 || ofs >= len)
+        return 0;
+
+    n = std::min(n, len - ofs);
+    memcpy(values, data->c_str() + ofs, n);
+    return n;
+}
+
+// int accessor
+// ref = pointer to int
+static int
+IntAcc(XPLMDataRef ref)
+{
+    if (ref == nullptr)
+        return 0;
+
+    return *(int *)ref;
+}
+
 /// ------------------------------------------------------ API --------------------------------------------
+#define DATA_DREF(f) \
+    XPLMRegisterDataAccessor("sbh/" #f, xplmType_Data, 0, NULL, NULL, \
+                             NULL, NULL, NULL, NULL, NULL, NULL, \
+                             NULL, NULL, DataAcc, NULL, (void *)&ofp_info.f, NULL)
+
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
 {
@@ -557,9 +595,47 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     cmdr = XPLMCreateCommand("sbh/fetch", "Fetch ofp data and show in widget");
     XPLMRegisterCommandHandler(cmdr, fetch_cmd_cb, 0, NULL);
     flight_loop_id = XPLMCreateFlightLoop(&create_flight_loop);
+
+    DATA_DREF(units);
+    DATA_DREF(status);
+    DATA_DREF(icao_airline);
+    DATA_DREF(flight_number);
+    DATA_DREF(aircraft_icao);
+    DATA_DREF(max_passengers);
+    DATA_DREF(fuel_plan_ramp);
+    DATA_DREF(origin);
+    DATA_DREF(origin_rwy);
+    DATA_DREF(destination);
+    DATA_DREF(alternate);
+    DATA_DREF(destination_rwy);
+    DATA_DREF(ci);
+    DATA_DREF(altitude);
+    DATA_DREF(tropopause);
+    DATA_DREF(isa_dev);
+    DATA_DREF(wind_component);
+    DATA_DREF(oew);
+    DATA_DREF(pax_count);
+    DATA_DREF(freight);
+    DATA_DREF(payload);
+    DATA_DREF(route);
+    DATA_DREF(alt_route);
+    DATA_DREF(time_generated);
+    DATA_DREF(est_time_enroute);
+    DATA_DREF(est_out);
+    DATA_DREF(est_off);
+    DATA_DREF(est_on);
+    DATA_DREF(est_in);
+
+    XPLMRegisterDataAccessor("sbh/valid", xplmType_Int, 0, IntAcc, NULL,
+                             NULL, NULL, NULL, NULL, NULL, NULL,
+                             NULL, NULL, NULL, NULL, (void *)&ofp_info.valid, NULL);
+
+    XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, IntAcc, NULL,
+                             NULL, NULL, NULL, NULL, NULL, NULL,
+                             NULL, NULL, NULL, NULL, (void *)&ofp_info.seqno, NULL);
     return 1;
 }
-
+#undef DATA_DREF
 
 PLUGIN_API void
 XPluginStop(void)

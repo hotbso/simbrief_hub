@@ -26,36 +26,42 @@
 #define XPLM300
 #define XPLM301
 
+#define F(f) std::string f
 struct OfpInfo
 {
-    bool valid{false};
-    std::string units;
-    std::string status;
-    std::string icao_airline;
-    std::string flight_number;
-    std::string aircraft_icao;
-    std::string max_passengers;
-    std::string fuel_plan_ramp;
-    std::string origin;
-    std::string origin_rwy;
-    std::string destination;
-    std::string alternate;
-    std::string destination_rwy;
-    std::string ci;
-    std::string altitude;
-    std::string tropopause;
-    std::string isa_dev;
-    std::string wind_component;
-    std::string oew;
-    std::string pax_count;
-    std::string freight;
-    std::string payload;
-    std::string route;
-    std::string alt_route;
-    std::string sb_path;
-    std::string time_generated;
-    std::string est_time_enroute;
+    int valid{false};   // int!, is accessed by a integer accessor
+    int seqno{0};       // incremented after each successfull fetch
+    F(units);
+    F(status);
+    F(icao_airline);
+    F(flight_number);
+    F(aircraft_icao);
+    F(max_passengers);
+    F(fuel_plan_ramp);
+    F(origin);
+    F(origin_rwy);
+    F(destination);
+    F(alternate);
+    F(destination_rwy);
+    F(ci);
+    F(altitude);
+    F(tropopause);
+    F(isa_dev);
+    F(wind_component);
+    F(oew);
+    F(pax_count);
+    F(freight);
+    F(payload);
+    F(route);
+    F(alt_route);
+    F(time_generated);
+    F(est_time_enroute);
+    F(est_out);
+    F(est_off);
+    F(est_on);
+    F(est_in);
 };
+#undef F
 
 extern bool OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info);
 extern void DumpOfpInfo(const OfpInfo& ofp_info);

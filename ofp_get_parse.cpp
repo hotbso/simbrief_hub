@@ -57,11 +57,15 @@ DumpOfpInfo(const OfpInfo& ofp_info)
         L(freight);
         L(payload);
         L(est_time_enroute);
-        L(sb_path);
         L(time_generated);
+        L(est_out);
+        L(est_off);
+        L(est_on);
+        L(est_in);
     } else {
         LogMsg("%s", ofp_info.status.c_str());
     }
+#undef L
 }
 
 // super simple xml extractor
@@ -166,12 +170,12 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
         EXTRACT("route", route);
     }
 
-     if (POSITION("alternate")) {
+    if (POSITION("alternate")) {
         EXTRACT("icao_code", alternate);
         EXTRACT("route", alt_route);
     }
 
-   if (POSITION("weights")) {
+    if (POSITION("weights")) {
         EXTRACT("oew", oew);
         EXTRACT("pax_count", pax_count);
         EXTRACT("freight_added", freight);
@@ -180,6 +184,10 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
 
     if (POSITION("times")) {
         EXTRACT("est_time_enroute", est_time_enroute);
+        EXTRACT("est_out", est_out);
+        EXTRACT("est_off", est_off);
+        EXTRACT("est_on", est_on);
+        EXTRACT("est_in", est_in);
     }
 
     return true;
