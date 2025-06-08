@@ -20,6 +20,7 @@
 //
 
 #include <string>
+#include <memory>
 
 #define XPLM200
 #define XPLM210
@@ -60,11 +61,12 @@ struct OfpInfo
     F(est_off);
     F(est_on);
     F(est_in);
+
+    void Dump() const;
 };
 #undef F
 
-extern bool OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info);
-extern void DumpOfpInfo(const OfpInfo& ofp_info);
+extern std::unique_ptr<OfpInfo> OfpGetParse(const std::string& pilot_id);
 extern bool HttpGet(const std::string& url, std::string& data, int timeout);
 extern void LogMsg(const char *fmt, ...)  __attribute__ ((format (printf, 1, 2)));
 

@@ -26,6 +26,8 @@
 
 #include "sbh.h"
 
+static int seqno;
+
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 #ifdef WIN
@@ -33,10 +35,10 @@
 #endif
 
 void
-DumpOfpInfo(const OfpInfo& ofp_info)
+OfpInfo::Dump() const
 {
-    if (ofp_info.status == "Success") {
-#define L(field) LogMsg(#field ": %s", ofp_info.field.c_str())
+    if (status == "Success") {
+#define L(field) LogMsg(#field ": %s", field.c_str())
         L(units);
         L(icao_airline);
         L(flight_number);
@@ -62,9 +64,8 @@ DumpOfpInfo(const OfpInfo& ofp_info)
         L(est_off);
         L(est_on);
         L(est_in);
-    } else {
-        LogMsg("%s", ofp_info.status.c_str());
-    }
+    } else
+        LogMsg("%s", status.c_str());
 #undef L
 }
 
@@ -97,42 +98,44 @@ get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *te
 }
 
 #define POSITION(tag) \
-get_element_text(ofp, 0, ofp_len, tag, &out_s, &out_e)
+get_element_text(xml, 0, xml_len, tag, &out_s, &out_e)
 
 #define EXTRACT(tag, field) \
 do { \
     int s, e; \
-    if (get_element_text(ofp, out_s, out_e, tag, &s, &e)) { \
-        ofp_info.field = std::string(ofp + s, e - s); \
+    if (get_element_text(xml, out_s, out_e, tag, &s, &e)) { \
+        ofp_info->field = std::string(xml + s, e - s); \
     } \
 } while (0)
 
-bool
-OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
+std::unique_ptr<OfpInfo>
+OfpGetParse(const std::string& pilot_id)
 {
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
     // LogMsg("%s", url);
 
-    std::string ofp_data;
-    ofp_data.reserve(250 * 1024);
-    bool res = HttpGet(url, ofp_data, 10);
+    auto ofp_info = std::make_unique<OfpInfo>();
+
+    std::string xml_data;
+    xml_data.reserve(250 * 1024);
+    bool res = HttpGet(url, xml_data, 10);
 
     if (! res) {
-        ofp_info.status = "Network error";
-        ofp_info.stale = true;
-        return false;
+        ofp_info->status = "Network error";
+        ofp_info->stale = true;
+        return ofp_info;
     }
 
-    int ofp_len = ofp_data.length();
-    LogMsg("got ofp %d bytes", ofp_len);
+    int xml_len = xml_data.length();
+    LogMsg("got ofp xml %d bytes", xml_len);
 
-    char *ofp = (char *)ofp_data.c_str();
+    char *xml = (char *)xml_data.c_str();
     int out_s, out_e;
 
     if (POSITION("fetch")) {
         EXTRACT("status", status);
-        if (ofp_info.status != "Success") {
-            return false;
+        if (ofp_info->status != "Success") {
+            return ofp_info;
         }
     }
 
@@ -191,9 +194,9 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
         EXTRACT("est_in", est_in);
     }
 
-    ofp_info.stale = false;
-    ofp_info.seqno++;
-    return true;
+    ofp_info->stale = false;
+    ofp_info->seqno = ++seqno;
+    return ofp_info;
 }
 
 #ifdef TEST_SB_PARSE
@@ -215,17 +218,13 @@ main(int argc, char** argv)
 
     const std::string pilot_id = argv[1];
 
-    OfpInfo ofp_info;
-    OfpGetParse(pilot_id, ofp_info);
-    DumpOfpInfo(ofp_info);
-    time_t tg = atol(ofp_info.time_generated.c_str());
+    auto ofp_info = OfpGetParse(pilot_id);
+
+    ofp_info->Dump();
+    time_t tg = atol(ofp_info->time_generated.c_str());
     LogMsg("tg %ld", (long)tg);
-    struct tm tm;
-#ifdef IBM
-    gmtime_s(&tm, &tg);
-#else
-    gmtime_r(&tg, &tm);
-#endif
+
+    auto tm = *std::gmtime(&tg);
     char line[100];
     snprintf(line, sizeof(line), "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
                    tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,

@@ -57,7 +57,7 @@ struct WidgetCtx
 
 static WidgetCtx getofp_widget_ctx, conf_widget_ctx;
 
-static OfpInfo ofp_info;
+static std::unique_ptr<OfpInfo> ofp_info;
 
 static XPLMDataRef vr_enabled_dr, acf_icao_dr;
 static XPLMFlightLoopID flight_loop_id;
@@ -160,29 +160,31 @@ ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
 static int
 FetchOfp(void)
 {
-    OfpGetParse(pilot_id, ofp_info);
+    auto ofp_info_new = OfpGetParse(pilot_id);
 
-    if (ofp_info.status != "Success") {
-        XPSetWidgetDescriptor(status_line, ofp_info.status.c_str());
+    if (ofp_info_new->status != "Success") {
+        XPSetWidgetDescriptor(status_line, ofp_info_new->status.c_str());
         return 0; // error
     }
 
-    DumpOfpInfo(ofp_info);
+    ofp_info = std::move(ofp_info_new);
 
-    time_t tg = atol(ofp_info.time_generated.c_str());
+    ofp_info->Dump();
+
+    time_t tg = atol(ofp_info->time_generated.c_str());
     auto tm = *std::gmtime(&tg);
 
     char line[200];
     snprintf(line, sizeof(line),
              "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-             ofp_info.icao_airline.c_str(), ofp_info.flight_number.c_str(), ofp_info.aircraft_icao.c_str(),
+             ofp_info->icao_airline.c_str(), ofp_info->flight_number.c_str(), ofp_info->aircraft_icao.c_str(),
              tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
              tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     XPSetWidgetDescriptor(status_line, line);
     char buffer[100];
-    snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info.altitude.c_str()) / 100);
-    ofp_info.altitude = buffer;
+    snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
+    ofp_info->altitude = buffer;
     return 1;
 }
 
@@ -248,6 +250,9 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 
     // draw the embedded custom widget
     if ((widget_id == display_widget) && (xpMsg_Draw == msg)) {
+        if (ofp_info == nullptr)
+            return 1;
+
         static float label_color[] = { 0.0, 0.0, 0.0 };
         static float xfer_color[] = { 0.0, 0.5, 0.0 };
         static float bg_color[] = { 0.0, 0.3, 0.3 };
@@ -266,10 +271,10 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
     XPLMDrawString(label_color, left_col[COL], y, (char *)TXT, NULL, xplmFont_Proportional)
 
 #define DX(COL, FIELD) \
-    XPLMDrawString(xfer_color, right_col[COL], y, ofp_info.FIELD.c_str(), NULL, xplmFont_Basic)
+    XPLMDrawString(xfer_color, right_col[COL], y, ofp_info->FIELD.c_str(), NULL, xplmFont_Basic)
 
 #define DF(COL, FIELD) \
-    XPLMDrawString(bg_color, right_col[COL], y, ofp_info.FIELD.c_str(), NULL, xplmFont_Basic)
+    XPLMDrawString(bg_color, right_col[COL], y, ofp_info->FIELD.c_str(), NULL, xplmFont_Basic)
 
 #define DS(COL, STR) \
     XPLMDrawString(bg_color, right_col[COL], y, STR, NULL, xplmFont_Basic)
@@ -283,24 +288,24 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
         y -= 30;
 
         // D(aircraft_icao);
-        DL(0, "Departure:"); DS(0, (ofp_info.origin + "/" + ofp_info.origin_rwy).c_str());
-        DL(0, "Destination:"); DS(0, (ofp_info.destination + "/" + ofp_info.destination_rwy).c_str());
+        DL(0, "Departure:"); DS(0, (ofp_info->origin + "/" + ofp_info->origin_rwy).c_str());
+        DL(0, "Destination:"); DS(0, (ofp_info->destination + "/" + ofp_info->destination_rwy).c_str());
         DL(0, "Route:");
 
-        y = FormatRoute(bg_color, ofp_info.route, right_col[0], y);
+        y = FormatRoute(bg_color, ofp_info->route, right_col[0], y);
 
         DL(0, "Trip time");
-        if (ofp_info.est_time_enroute[0]) {
-            int ttmin = (atoi(ofp_info.est_time_enroute.c_str()) + 30) / 60;
+        if (ofp_info->est_time_enroute[0]) {
+            int ttmin = (atoi(ofp_info->est_time_enroute.c_str()) + 30) / 60;
             snprintf(str, sizeof(str), "%02d%02d", ttmin / 60, ttmin % 60);
             DS(0, str);
         }
 
-        int tropopause = atoi(ofp_info.tropopause.c_str());
+        int tropopause = atoi(ofp_info->tropopause.c_str());
         snprintf(str, sizeof(str), "%d", (tropopause + 500)/1000 * 1000);
         DL(0, "CI:"); DF(0, ci); DL(1, "TROPO:"); DS(1, str);
 
-        int isa_dev = atoi(ofp_info.isa_dev.c_str());
+        int isa_dev = atoi(ofp_info->isa_dev.c_str());
         if (isa_dev < 0)
             snprintf(str, sizeof(str), "M%03d", -isa_dev);
         else
@@ -309,7 +314,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
         DL(0, "CRZ FL:"); DF(0, altitude); DL(1, "ISA:"); DS(1, str);
 
 
-        int wind_component = atoi(ofp_info.wind_component.c_str());
+        int wind_component = atoi(ofp_info->wind_component.c_str());
         if (wind_component < 0)
             snprintf(str, sizeof(str), "M%03d", -wind_component);
         else
@@ -320,7 +325,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 
         DL(0, "Alternate:"); DF(0, alternate);
         DL(0, "Alt Route:");
-        y = FormatRoute(bg_color, ofp_info.alt_route, right_col[0], y);
+        y = FormatRoute(bg_color, ofp_info->alt_route, right_col[0], y);
         y -= 15;
 
         int pleft, ptop, pright, pbottom;
@@ -477,14 +482,17 @@ FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
 }
 
 // data accessor
-// ref = pointer to std::string
+// ref = offset of field (std::string) within OfpInfo
 static int
 DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
 {
-    if (ofp_info.seqno == 0)    // not even stale data
+    if (ofp_info == nullptr)
         return 0;
 
-    std::string *data = static_cast<std::string *>(ref);
+    if (ofp_info->seqno == 0)    // not even stale data
+        return 0;
+
+    std::string *data = static_cast<std::string *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
     int len = data->length();
     if (values == nullptr)
         return len;
@@ -502,17 +510,18 @@ DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
 static int
 IntAcc(XPLMDataRef ref)
 {
-    if (ref == nullptr)
+    if (ofp_info == nullptr)
         return 0;
 
-    return *(int *)ref;
+    int *data = static_cast<int *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
+    return *data;
 }
 
 /// ------------------------------------------------------ API --------------------------------------------
 #define DATA_DREF(f) \
     XPLMRegisterDataAccessor("sbh/" #f, xplmType_Data, 0, NULL, NULL, \
                              NULL, NULL, NULL, NULL, NULL, NULL, \
-                             NULL, NULL, DataAcc, NULL, (void *)&ofp_info.f, NULL)
+                             NULL, NULL, DataAcc, NULL, (void *)offsetof(OfpInfo, f), NULL)
 
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
@@ -589,11 +598,11 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
 
     XPLMRegisterDataAccessor("sbh/stale", xplmType_Int, 0, IntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
-                             NULL, NULL, NULL, NULL, (void *)&ofp_info.stale, NULL);
+                             NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, stale), NULL);
 
     XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, IntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
-                             NULL, NULL, NULL, NULL, (void *)&ofp_info.seqno, NULL);
+                             NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, seqno), NULL);
     CreateWidget();
     return 1;
 }
@@ -604,19 +613,16 @@ XPluginStop(void)
 {
 }
 
-
 PLUGIN_API void
 XPluginDisable(void)
 {
 }
-
 
 PLUGIN_API int
 XPluginEnable(void)
 {
     return 1;
 }
-
 
 PLUGIN_API void
 XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *in_param)
