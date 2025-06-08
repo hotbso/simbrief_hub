@@ -164,25 +164,19 @@ FetchOfp(void)
 {
     msg_line_1[0] = msg_line_2[0] = msg_line_3[0] = '\0';
 
-    ofp_info.valid = false;
-
     OfpGetParse(pilot_id, ofp_info);
-    DumpOfpInfo(ofp_info);
 
     if (ofp_info.status != "Success") {
         XPSetWidgetDescriptor(status_line, ofp_info.status.c_str());
         return 0; // error
     }
 
+    DumpOfpInfo(ofp_info);
+
     time_t tg = atol(ofp_info.time_generated.c_str());
-    struct tm tm;
-#ifdef WINDOWS
-    gmtime_s(&tm, &tg);
-#else
-    gmtime_r(&tg, &tm);
-#endif
+    auto tm = *std::gmtime(&tg);
+
     char line[200];
-    // strftime does not work for whatever reasons
     snprintf(line, sizeof(line),
              "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
              ofp_info.icao_airline.c_str(), ofp_info.flight_number.c_str(), ofp_info.aircraft_icao.c_str(),
@@ -190,8 +184,6 @@ FetchOfp(void)
              tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     XPSetWidgetDescriptor(status_line, line);
-    ofp_info.valid = true;
-    ofp_info.seqno++;
     char buffer[100];
     snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info.altitude.c_str()) / 100);
     ofp_info.altitude = buffer;
@@ -513,7 +505,7 @@ FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
 static int
 DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
 {
-    if (!ofp_info.valid)
+    if (ofp_info.seqno == 0)    // not even stale data
         return 0;
 
     std::string *data = static_cast<std::string *>(ref);
@@ -619,9 +611,9 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     DATA_DREF(est_on);
     DATA_DREF(est_in);
 
-    XPLMRegisterDataAccessor("sbh/valid", xplmType_Int, 0, IntAcc, NULL,
+    XPLMRegisterDataAccessor("sbh/stale", xplmType_Int, 0, IntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
-                             NULL, NULL, NULL, NULL, (void *)&ofp_info.valid, NULL);
+                             NULL, NULL, NULL, NULL, (void *)&ofp_info.stale, NULL);
 
     XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, IntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,

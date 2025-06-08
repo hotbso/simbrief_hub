@@ -119,6 +119,7 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
 
     if (! res) {
         ofp_info.status = "Network error";
+        ofp_info.stale = true;
         return false;
     }
 
@@ -190,6 +191,8 @@ OfpGetParse(const std::string& pilot_id, OfpInfo& ofp_info)
         EXTRACT("est_in", est_in);
     }
 
+    ofp_info.stale = false;
+    ofp_info.seqno++;
     return true;
 }
 

@@ -29,7 +29,7 @@
 #define F(f) std::string f
 struct OfpInfo
 {
-    int valid{false};   // int!, is accessed by a integer accessor
+    int stale{false};   // int!, is accessed by a integer accessor
     int seqno{0};       // incremented after each successfull fetch
     F(units);
     F(status);
