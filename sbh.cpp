@@ -66,7 +66,6 @@ static int error_disabled;
 
 static char pref_path[512];
 static char pilot_id[20];
-static char msg_line_1[100], msg_line_2[100], msg_line_3[100];
 
 static void
 save_pref()
@@ -162,8 +161,6 @@ conf_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 static int
 FetchOfp(void)
 {
-    msg_line_1[0] = msg_line_2[0] = msg_line_3[0] = '\0';
-
     OfpGetParse(pilot_id, ofp_info);
 
     if (ofp_info.status != "Success") {
@@ -325,25 +322,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
         DL(0, "Alternate:"); DF(0, alternate);
         DL(0, "Alt Route:");
         y = format_route(bg_color, ofp_info.alt_route, right_col[0], y);
-        y -= 5;
-
-        if (msg_line_1[0]) {
-            y -= 15;
-            XPLMDrawString(bg_color, left_col[0], y, msg_line_1, NULL, xplmFont_Proportional);
-        }
-
-        if (msg_line_2[0]) {
-            y -= 15;
-            XPLMDrawString(bg_color, left_col[0], y, msg_line_2, NULL, xplmFont_Proportional);
-        }
-
-        if (msg_line_3[0]) {
-            y -= 15;
-            XPLMDrawString(bg_color, left_col[0], y, msg_line_3, NULL, xplmFont_Proportional);
-        }
-
-        // adjust height of window
-        y -= 10;
+        y -= 15;
 
         int pleft, ptop, pright, pbottom;
         XPGetWidgetGeometry(getofp_widget, &pleft, &ptop, &pright, &pbottom);
