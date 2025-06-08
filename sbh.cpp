@@ -48,14 +48,14 @@ static const char *psep;
 static XPWidgetID getofp_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
-typedef struct _widget_ctx
+struct WidgetCtx
 {
     XPWidgetID widget;
     int in_vr;          // currently in vr
     int l, t, w, h;     // last geometry before bringing into vr
-} widget_ctx_t;
+};
 
-static widget_ctx_t getofp_widget_ctx, conf_widget_ctx;
+static WidgetCtx getofp_widget_ctx, conf_widget_ctx;
 
 static OfpInfo ofp_info;
 
@@ -68,7 +68,7 @@ static char pref_path[512];
 static char pilot_id[20];
 
 static void
-save_pref()
+SavePrefs()
 {
     FILE *f = fopen(pref_path, "wb");
     if (NULL == f)
@@ -80,7 +80,7 @@ save_pref()
 
 
 static void
-load_pref()
+LoadPrefs()
 {
     FILE *f  = fopen(pref_path, "rb");
     if (NULL == f)
@@ -93,9 +93,9 @@ load_pref()
 }
 
 static void
-ShowWidget(widget_ctx_t *ctx)
+ShowWidget(WidgetCtx& ctx)
 {
-    if (XPIsWidgetVisible(ctx->widget))
+    if (XPIsWidgetVisible(ctx.widget))
         return;
 
     // force window into visible area of screen
@@ -104,40 +104,39 @@ ShowWidget(widget_ctx_t *ctx)
     int xl, yl, xr, yr;
     XPLMGetScreenBoundsGlobal(&xl, &yr, &xr, &yl);
 
-    ctx->l = (ctx->l + ctx->w < xr) ? ctx->l : xr - ctx->w - 50;
-    ctx->l = (ctx->l <= xl) ? 20 : ctx->l;
+    ctx.l = (ctx.l + ctx.w < xr) ? ctx.l : xr - ctx.w - 50;
+    ctx.l = (ctx.l <= xl) ? 20 : ctx.l;
 
-    ctx->t = (ctx->t + ctx->h < yr) ? ctx->t : (yr - ctx->h - 50);
-    ctx->t = (ctx->t >= ctx->h) ? ctx->t : (yr / 2);
+    ctx.t = (ctx.t + ctx.h < yr) ? ctx.t : (yr - ctx.h - 50);
+    ctx.t = (ctx.t >= ctx.h) ? ctx.t : (yr / 2);
 
     LogMsg("ShowWidget: s: (%d, %d) -> (%d, %d), w: (%d, %d) -> (%d,%d)",
-           xl, yl, xr, yr, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
+           xl, yl, xr, yr, ctx.l, ctx.t, ctx.l + ctx.w, ctx.t - ctx.h);
 
-    XPSetWidgetGeometry(ctx->widget, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
-    XPShowWidget(ctx->widget);
+    XPSetWidgetGeometry(ctx.widget, ctx.l, ctx.t, ctx.l + ctx.w, ctx.t - ctx.h);
+    XPShowWidget(ctx.widget);
 
     int in_vr = (NULL != vr_enabled_dr) && XPLMGetDatai(vr_enabled_dr);
     if (in_vr) {
         LogMsg("VR mode detected");
-        XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx->widget);
+        XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx.widget);
         XPLMSetWindowPositioningMode(window, xplm_WindowVR, -1);
-        ctx->in_vr = 1;
+        ctx.in_vr = 1;
     } else {
-        if (ctx->in_vr) {
-            LogMsg("widget now out of VR, map at (%d,%d)", ctx->l, ctx->t);
-            XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx->widget);
+        if (ctx.in_vr) {
+            LogMsg("widget now out of VR, map at (%d,%d)", ctx.l, ctx.t);
+            XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx.widget);
             XPLMSetWindowPositioningMode(window, xplm_WindowPositionFree, -1);
 
             // A resize is necessary so it shows up on the main screen again
-            XPSetWidgetGeometry(ctx->widget, ctx->l, ctx->t, ctx->l + ctx->w, ctx->t - ctx->h);
-            ctx->in_vr = 0;
+            XPSetWidgetGeometry(ctx.widget, ctx.l, ctx.t, ctx.l + ctx.w, ctx.t - ctx.h);
+            ctx.in_vr = 0;
         }
     }
 }
 
-
 static int
-conf_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
+ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
 {
     if (msg == xpMessage_CloseButtonPushed) {
         XPHideWidget(widget_id);
@@ -149,7 +148,7 @@ conf_widget_cb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 
     if ((widget_id == conf_ok_btn) && (msg == xpMsg_PushButtonPressed)) {
         XPGetWidgetDescriptor(pilot_id_input, pilot_id, sizeof(pilot_id));
-        save_pref();
+        SavePrefs();
         XPHideWidget(conf_widget);
         return 1;
     }
@@ -188,7 +187,7 @@ FetchOfp(void)
 }
 
 static int
-format_route(float *bg_color, std::string& route, int right_col, int y)
+FormatRoute(float *bg_color, std::string& route, int right_col, int y)
 {
     char *rptr = (char *)route.c_str();
 
@@ -288,7 +287,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
         DL(0, "Destination:"); DS(0, (ofp_info.destination + "/" + ofp_info.destination_rwy).c_str());
         DL(0, "Route:");
 
-        y = format_route(bg_color, ofp_info.route, right_col[0], y);
+        y = FormatRoute(bg_color, ofp_info.route, right_col[0], y);
 
         DL(0, "Trip time");
         if (ofp_info.est_time_enroute[0]) {
@@ -321,7 +320,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 
         DL(0, "Alternate:"); DF(0, alternate);
         DL(0, "Alt Route:");
-        y = format_route(bg_color, ofp_info.alt_route, right_col[0], y);
+        y = FormatRoute(bg_color, ofp_info.alt_route, right_col[0], y);
         y -= 15;
 
         int pleft, ptop, pright, pbottom;
@@ -388,11 +387,11 @@ CreateWidget()
 }
 
 static void
-menu_cb(void *menu_ref, void *item_ref)
+MenuCb(void *menu_ref, void *item_ref)
 {
     // create gui
     if (item_ref == &getofp_widget) {
-        ShowWidget(&getofp_widget_ctx);
+        ShowWidget(getofp_widget_ctx);
         return;
     }
 
@@ -413,7 +412,7 @@ menu_cb(void *menu_ref, void *item_ref)
             conf_widget_ctx.widget = conf_widget;
 
             XPSetWidgetProperty(conf_widget, xpProperty_MainWindowHasCloseBoxes, 1);
-            XPAddWidgetCallback(conf_widget, conf_widget_cb);
+            XPAddWidgetCallback(conf_widget, ConfWidgetCb);
             left += 5; top -= 25;
             XPCreateWidget(left, top, left + width - 2 * 5, top - 15,
                            1, "Pilot Id", 0, conf_widget, xpWidgetClass_Caption);
@@ -427,11 +426,11 @@ menu_cb(void *menu_ref, void *item_ref)
             top -= 30;
             conf_ok_btn = XPCreateWidget(left + 10, top, left + 140, top - 30,
                                       1, "OK", 0, conf_widget, xpWidgetClass_Button);
-            XPAddWidgetCallback(conf_ok_btn, conf_widget_cb);
+            XPAddWidgetCallback(conf_ok_btn, ConfWidgetCb);
         }
 
         XPSetWidgetDescriptor(pilot_id_input, pilot_id);
-        ShowWidget(&conf_widget_ctx);
+        ShowWidget(conf_widget_ctx);
         return;
     }
 }
@@ -451,7 +450,7 @@ FetchCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *r
 
 // call back for toggle cmd
 static int
-toggle_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *ref)
+ToggleCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *ref)
 {
     if (xplm_CommandBegin != phase)
         return 0;
@@ -463,7 +462,7 @@ toggle_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void
         return 0;
     }
 
-    ShowWidget(&getofp_widget_ctx);
+    ShowWidget(getofp_widget_ctx);
     return 0;
 }
 
@@ -540,16 +539,16 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     XPLMExtractFileAndPath(pref_path);
     strcat(pref_path, psep);
     strcat(pref_path, "simbrief_hub.prf");
-    load_pref();
+    LoadPrefs();
 
     XPLMMenuID menu = XPLMFindPluginsMenu();
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
-    XPLMMenuID sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, menu_cb, NULL);
+    XPLMMenuID sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
     XPLMAppendMenuItem(sbh_menu, "Configure", &conf_widget, 0);
     XPLMAppendMenuItem(sbh_menu, "Show widget", &getofp_widget, 0);
 
     XPLMCommandRef cmdr = XPLMCreateCommand("sbh/toggle", "Toggle Simbrief Hub widget");
-    XPLMRegisterCommandHandler(cmdr, toggle_cmd_cb, 0, NULL);
+    XPLMRegisterCommandHandler(cmdr, ToggleCmdCb, 0, NULL);
 
     cmdr = XPLMCreateCommand("sbh/fetch", "Fetch ofp data and show in widget");
     XPLMRegisterCommandHandler(cmdr, FetchCmdCb, 0, NULL);
