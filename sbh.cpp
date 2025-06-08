@@ -27,6 +27,8 @@
 #include <cstdio>
 #include <ctime>
 #include <memory>
+#include <future>
+#include <chrono>
 
 #include "sbh.h"
 
@@ -44,7 +46,6 @@
 static char xpdir[512];
 static const char *psep;
 
-#define MSG_GET_OFP (xpMsg_UserStart + 1)
 static XPWidgetID getofp_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
@@ -57,8 +58,6 @@ struct WidgetCtx
 
 static WidgetCtx getofp_widget_ctx, conf_widget_ctx;
 
-static std::unique_ptr<OfpInfo> ofp_info;
-
 static XPLMDataRef vr_enabled_dr, acf_icao_dr;
 static XPLMFlightLoopID flight_loop_id;
 
@@ -66,6 +65,22 @@ static int error_disabled;
 
 static char pref_path[512];
 static char pilot_id[20];
+
+// A note on async processing:
+// Everything is synchronously fired by the flightloop so we don't need mutexes
+
+// these 2 variables are owned and written by the main (= flightloop) thread
+static bool download_active;
+static std::unique_ptr<OfpInfo> ofp_info;
+
+// use of this variable is alternate
+// If download_active:
+//  true:  written by the download thread
+//  false: read and written by the main thread
+static std::unique_ptr<OfpInfo> ofp_info_new;
+
+// variable under system control
+static std::future<bool> download_future;
 
 static void
 SavePrefs()
@@ -156,36 +171,62 @@ ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
     return 0;
 }
 
-// return success == 1
-static int
-FetchOfp(void)
+//
+// Check for download and activate the new ofp
+// return true if download is still in progress
+bool
+CheckAsyncDownload()
 {
-    auto ofp_info_new = OfpGetParse(pilot_id);
+    if (download_active) {
+        if (std::future_status::ready != download_future.wait_for(std::chrono::seconds::zero()))
+            return true;
 
-    if (ofp_info_new->status != "Success") {
-        XPSetWidgetDescriptor(status_line, ofp_info_new->status.c_str());
-        return 0; // error
+        download_active = false;
+        [[maybe_unused]] bool res = download_future.get();
+        ofp_info = std::move(ofp_info_new);
+
+        LogMsg("CheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
+        if (ofp_info->status != "Success") {
+            XPSetWidgetDescriptor(status_line, ofp_info->status.c_str());
+            return false; // no download active
+        }
+
+        time_t tg = atol(ofp_info->time_generated.c_str());
+        auto tm = *std::gmtime(&tg);
+
+        char line[200];
+        snprintf(line, sizeof(line),
+                 "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
+                 ofp_info->icao_airline.c_str(), ofp_info->flight_number.c_str(), ofp_info->aircraft_icao.c_str(),
+                 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                 tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+        XPSetWidgetDescriptor(status_line, line);
+        char buffer[100];
+        snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
+        ofp_info->altitude = buffer;
     }
 
-    ofp_info = std::move(ofp_info_new);
+    return download_active;
+}
 
-    ofp_info->Dump();
+static bool
+AsyncOfpGetParse()
+{
+    return OfpGetParse(pilot_id, ofp_info_new);
+}
 
-    time_t tg = atol(ofp_info->time_generated.c_str());
-    auto tm = *std::gmtime(&tg);
+static void
+FetchOfp(void)
+{
+    if (download_active) {
+        LogMsg("Download is already in progress, request ignored");
+        return;
+    }
 
-    char line[200];
-    snprintf(line, sizeof(line),
-             "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-             ofp_info->icao_airline.c_str(), ofp_info->flight_number.c_str(), ofp_info->aircraft_icao.c_str(),
-             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-             tm.tm_hour, tm.tm_min, tm.tm_sec);
-
-    XPSetWidgetDescriptor(status_line, line);
-    char buffer[100];
-    snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
-    ofp_info->altitude = buffer;
-    return 1;
+    download_future = std::async(std::launch::async, AsyncOfpGetParse);
+    download_active = true;
+    XPLMScheduleFlightLoop(flight_loop_id, 1.0f, 1);
 }
 
 static int
@@ -237,15 +278,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 
     if ((widget_id == getofp_btn) && (msg == xpMsg_PushButtonPressed)) {
         XPSetWidgetDescriptor(status_line, "Fetching...");
-        // Send message to myself to get a draw cycle (draws button as selected)
-        XPSendMessageToWidget(status_line, MSG_GET_OFP, xpMode_UpChain, 0, 0);
-        return 1;
-    }
-
-    // self sent message: fetch OFP (lengthy)
-    if ((widget_id == getofp_widget) && (MSG_GET_OFP == msg)) {
-        (void)FetchOfp();
-        return 1;
+        FetchOfp();
     }
 
     // draw the embedded custom widget
@@ -478,6 +511,9 @@ FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
              [[maybe_unused]] void *inRefcon)
 {
     LogMsg("flight loop");
+    if (CheckAsyncDownload())
+        return 1.0f;
+
     return 0; // unschedule
 }
 
@@ -629,6 +665,6 @@ XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *
 {
     if (in_msg == XPLM_MSG_PLANE_LOADED && in_param == 0) {
         LogMsg("plane loaded");
-        FetchOfp();
+        //FetchOfp();
     }
 }

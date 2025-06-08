@@ -108,13 +108,13 @@ do { \
     } \
 } while (0)
 
-std::unique_ptr<OfpInfo>
-OfpGetParse(const std::string& pilot_id)
+bool
+OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
 {
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
     // LogMsg("%s", url);
 
-    auto ofp_info = std::make_unique<OfpInfo>();
+    ofp_info = std::make_unique<OfpInfo>();
 
     std::string xml_data;
     xml_data.reserve(250 * 1024);
@@ -123,7 +123,7 @@ OfpGetParse(const std::string& pilot_id)
     if (! res) {
         ofp_info->status = "Network error";
         ofp_info->stale = true;
-        return ofp_info;
+        return false;
     }
 
     int xml_len = xml_data.length();
@@ -135,7 +135,7 @@ OfpGetParse(const std::string& pilot_id)
     if (POSITION("fetch")) {
         EXTRACT("status", status);
         if (ofp_info->status != "Success") {
-            return ofp_info;
+            return false;
         }
     }
 
@@ -196,7 +196,7 @@ OfpGetParse(const std::string& pilot_id)
 
     ofp_info->stale = false;
     ofp_info->seqno = ++seqno;
-    return ofp_info;
+    return true;
 }
 
 #ifdef TEST_SB_PARSE
