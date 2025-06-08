@@ -413,7 +413,6 @@ menu_cb(void *menu_ref, void *item_ref)
 {
     // create gui
     if (item_ref == &getofp_widget) {
-        CreateWidget();
         ShowWidget(&getofp_widget_ctx);
         return;
     }
@@ -479,7 +478,6 @@ toggle_cmd_cb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void
         return 0;
 
     LogMsg("toggle cmd called");
-    CreateWidget();
 
     if (XPIsWidgetVisible(getofp_widget_ctx.widget)) {
         XPHideWidget(getofp_widget_ctx.widget);
@@ -618,6 +616,7 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, IntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void *)&ofp_info.seqno, NULL);
+    CreateWidget();
     return 1;
 }
 #undef DATA_DREF
