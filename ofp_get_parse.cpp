@@ -28,12 +28,6 @@
 
 static int seqno;
 
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
-#ifdef WIN
-#define unlink(f) _unlink(f)
-#endif
-
 void
 OfpInfo::Dump() const
 {
