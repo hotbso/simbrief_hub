@@ -26,6 +26,7 @@
 #include <cstring>
 #include <cstdio>
 #include <ctime>
+#include <fstream>
 #include <memory>
 #include <future>
 #include <chrono>
@@ -42,9 +43,6 @@
 #include "XPLMMenus.h"
 #include "XPWidgets.h"
 #include "XPStandardWidgets.h"
-
-static char xpdir[512];
-static const char *psep;
 
 static XPWidgetID getofp_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
@@ -63,8 +61,8 @@ static XPLMFlightLoopID flight_loop_id;
 
 static int error_disabled;
 
-static char pref_path[512];
-static char pilot_id[20];
+static std::string pref_path;
+static std::string pilot_id;
 
 // A note on async processing:
 // Everything is synchronously fired by the flightloop so we don't need mutexes
@@ -85,26 +83,28 @@ static std::future<bool> download_future;
 static void
 SavePrefs()
 {
-    FILE *f = fopen(pref_path, "wb");
-    if (NULL == f)
+    std::ofstream f(pref_path);
+    if (!f.is_open()) {
+        LogMsg("Can't create '%s'", pref_path.c_str());
         return;
+    }
 
-    fputs(pilot_id, f); putc('\n', f);
-    fclose(f);
+    f << pilot_id << "\n";
 }
 
 
 static void
 LoadPrefs()
 {
-    FILE *f  = fopen(pref_path, "rb");
-    if (NULL == f)
+    std::ifstream f(pref_path);
+    if (! f.is_open()) {
+        LogMsg("Can't open '%s'", pref_path.c_str());
         return;
+    }
 
-    fgets(pilot_id, sizeof(pilot_id), f);
-    int len = strlen(pilot_id);
-    if ('\n' == pilot_id[len - 1]) pilot_id[len - 1] = '\0';
-    fclose(f);
+    std::getline(f, pilot_id);
+    if (pilot_id.back() == '\r')
+        pilot_id.pop_back();
 }
 
 static void
@@ -162,7 +162,9 @@ ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
         return 1;
 
     if ((widget_id == conf_ok_btn) && (msg == xpMsg_PushButtonPressed)) {
-        XPGetWidgetDescriptor(pilot_id_input, pilot_id, sizeof(pilot_id));
+        char buffer[40];
+        XPGetWidgetDescriptor(pilot_id_input, buffer, sizeof(buffer));
+        pilot_id = buffer;
         SavePrefs();
         XPHideWidget(conf_widget);
         return 1;
@@ -219,6 +221,11 @@ AsyncOfpGetParse()
 static void
 FetchOfp(void)
 {
+    if (pilot_id.empty()) {
+        LogMsg("pilot_id is not configured!");
+        return;
+    }
+
     if (download_active) {
         LogMsg("Download is already in progress, request ignored");
         return;
@@ -457,9 +464,9 @@ MenuCb(void *menu_ref, void *item_ref)
 
             int left1 = left + 60;
             pilot_id_input = XPCreateWidget(left1, top, left1 +  50, top - 15,
-                                            1, pilot_id, 0, conf_widget, xpWidgetClass_TextField);
+                                            1, pilot_id.c_str(), 0, conf_widget, xpWidgetClass_TextField);
             XPSetWidgetProperty(pilot_id_input, xpProperty_TextFieldType, xpTextEntryField);
-            XPSetWidgetProperty(pilot_id_input, xpProperty_MaxCharacters, sizeof(pilot_id) -1);
+            XPSetWidgetProperty(pilot_id_input, xpProperty_MaxCharacters, 20);
 
             top -= 30;
             conf_ok_btn = XPCreateWidget(left + 10, top, left + 140, top - 30,
@@ -467,7 +474,7 @@ MenuCb(void *menu_ref, void *item_ref)
             XPAddWidgetCallback(conf_ok_btn, ConfWidgetCb);
         }
 
-        XPSetWidgetDescriptor(pilot_id_input, pilot_id);
+        XPSetWidgetDescriptor(pilot_id_input, pilot_id.c_str());
         ShowWidget(conf_widget_ctx);
         return;
     }
@@ -572,18 +579,15 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     strcpy(out_sig, "sbh-hotbso");
     strcpy(out_desc, "A central resource of simbrief data for other plugins");
 
-    psep = XPLMGetDirectorySeparator();
-    XPLMGetSystemPath(xpdir);
-
     // map standard datarefs
     vr_enabled_dr = XPLMFindDataRef("sim/graphics/VR/enabled");
     acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
 
     // load preferences
-    XPLMGetPrefsPath(pref_path);
-    XPLMExtractFileAndPath(pref_path);
-    strcat(pref_path, psep);
-    strcat(pref_path, "simbrief_hub.prf");
+    char buffer[2048];
+    XPLMGetPrefsPath(buffer);
+    XPLMExtractFileAndPath(buffer);
+    pref_path = std::string(buffer) + "/simbrief_hub.prf";
     LoadPrefs();
 
     XPLMMenuID menu = XPLMFindPluginsMenu();
@@ -640,6 +644,8 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
                              NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, seqno), NULL);
     CreateWidget();
+    if (pilot_id.empty())
+        XPSetWidgetDescriptor(status_line, "Pilot ID is not configured!");
     return 1;
 }
 #undef DATA_DREF
@@ -665,6 +671,6 @@ XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *
 {
     if (in_msg == XPLM_MSG_PLANE_LOADED && in_param == 0) {
         LogMsg("plane loaded");
-        //FetchOfp();
+        FetchOfp();
     }
 }
