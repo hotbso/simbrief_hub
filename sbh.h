@@ -22,10 +22,7 @@
 #include <string>
 #include <memory>
 
-#define XPLM200
-#define XPLM210
-#define XPLM300
-#define XPLM301
+#include "log_msg.h"
 
 #define F(f) std::string f
 struct OfpInfo
@@ -68,5 +65,4 @@ struct OfpInfo
 
 extern bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info);
 extern bool HttpGet(const std::string& url, std::string& data, int timeout);
-extern void LogMsg(const char *fmt, ...)  __attribute__ ((format (printf, 1, 2)));
 

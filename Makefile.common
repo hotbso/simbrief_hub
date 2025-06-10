@@ -1,10 +1,11 @@
+VPATH:=.:../xplib
 SDK=../SDK
-INCLUDES=-I. -I$(SDK)/CHeaders/XPLM -I$(SDK)/CHeaders/Widgets
+INCLUDES=-I. -I../xplib -I$(SDK)/CHeaders/XPLM -I$(SDK)/CHeaders/Widgets
 
 # platform independent defines
-DEFINES=
+DEFINES=-DXPLM200 -DXPLM210 -DXPLM300 -DXPLM301
 
-SOURCES_CPP=sbh.cpp ofp_get_parse.cpp http_get.cpp log_msg.cpp
+SOURCES_CPP=sbh.cpp ofp_get_parse.cpp http_get.cpp log_msg.cpp widget_ctx.cpp
 SOURCES_C=
 
 # the c++ standard to use

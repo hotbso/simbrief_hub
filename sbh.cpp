@@ -34,8 +34,6 @@
 #include "sbh.h"
 
 #include "XPLMPlugin.h"
-#include "XPLMPlanes.h"
-#include "XPLMDisplay.h"
 #include "XPLMGraphics.h"
 #include "XPLMDataAccess.h"
 #include "XPLMUtilities.h"
@@ -44,19 +42,14 @@
 #include "XPWidgets.h"
 #include "XPStandardWidgets.h"
 
-static XPWidgetID getofp_widget, display_widget, getofp_btn, status_line;
+#include "widget_ctx.h"
+
+static XPWidgetID main_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
-struct WidgetCtx
-{
-    XPWidgetID widget;
-    int in_vr;          // currently in vr
-    int l, t, w, h;     // last geometry before bringing into vr
-};
+static WidgetCtx main_widget_ctx, conf_widget_ctx;
 
-static WidgetCtx getofp_widget_ctx, conf_widget_ctx;
-
-static XPLMDataRef vr_enabled_dr, acf_icao_dr;
+static XPLMDataRef acf_icao_dr;
 static XPLMFlightLoopID flight_loop_id;
 
 static int error_disabled;
@@ -103,58 +96,15 @@ LoadPrefs()
     }
 
     std::getline(f, pilot_id);
-    if (pilot_id.back() == '\r')
+    if (!pilot_id.empty() && pilot_id.back() == '\r')
         pilot_id.pop_back();
-}
-
-static void
-ShowWidget(WidgetCtx& ctx)
-{
-    if (XPIsWidgetVisible(ctx.widget))
-        return;
-
-    // force window into visible area of screen
-    // we use modern windows under the hut so UI coordinates are in boxels
-
-    int xl, yl, xr, yr;
-    XPLMGetScreenBoundsGlobal(&xl, &yr, &xr, &yl);
-
-    ctx.l = (ctx.l + ctx.w < xr) ? ctx.l : xr - ctx.w - 50;
-    ctx.l = (ctx.l <= xl) ? 20 : ctx.l;
-
-    ctx.t = (ctx.t + ctx.h < yr) ? ctx.t : (yr - ctx.h - 50);
-    ctx.t = (ctx.t >= ctx.h) ? ctx.t : (yr / 2);
-
-    LogMsg("ShowWidget: s: (%d, %d) -> (%d, %d), w: (%d, %d) -> (%d,%d)",
-           xl, yl, xr, yr, ctx.l, ctx.t, ctx.l + ctx.w, ctx.t - ctx.h);
-
-    XPSetWidgetGeometry(ctx.widget, ctx.l, ctx.t, ctx.l + ctx.w, ctx.t - ctx.h);
-    XPShowWidget(ctx.widget);
-
-    int in_vr = (NULL != vr_enabled_dr) && XPLMGetDatai(vr_enabled_dr);
-    if (in_vr) {
-        LogMsg("VR mode detected");
-        XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx.widget);
-        XPLMSetWindowPositioningMode(window, xplm_WindowVR, -1);
-        ctx.in_vr = 1;
-    } else {
-        if (ctx.in_vr) {
-            LogMsg("widget now out of VR, map at (%d,%d)", ctx.l, ctx.t);
-            XPLMWindowID window =  XPGetWidgetUnderlyingWindow(ctx.widget);
-            XPLMSetWindowPositioningMode(window, xplm_WindowPositionFree, -1);
-
-            // A resize is necessary so it shows up on the main screen again
-            XPSetWidgetGeometry(ctx.widget, ctx.l, ctx.t, ctx.l + ctx.w, ctx.t - ctx.h);
-            ctx.in_vr = 0;
-        }
-    }
 }
 
 static int
 ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
 {
     if (msg == xpMessage_CloseButtonPushed) {
-        XPHideWidget(widget_id);
+        conf_widget_ctx.Hide();
         return 1;
     }
 
@@ -166,7 +116,7 @@ ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
         XPGetWidgetDescriptor(pilot_id_input, buffer, sizeof(buffer));
         pilot_id = buffer;
         SavePrefs();
-        XPHideWidget(conf_widget);
+        conf_widget_ctx.Hide();
         return 1;
     }
 
@@ -273,10 +223,10 @@ FormatRoute(float *bg_color, std::string& route, int right_col, int y)
 }
 
 static int
-GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
+MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
 {
     if (msg == xpMessage_CloseButtonPushed) {
-        XPHideWidget(widget_id);
+        main_widget_ctx.Hide();
         return 1;
     }
 
@@ -324,8 +274,20 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
         DL(0, "Cargo:"); DX(0, freight);
         DL(0, "Fuel:"); DX(0, fuel_plan_ramp);
         // D(right_col, payload);
+        y -= 10;
 
-        y -= 30;
+        time_t out_time = atol(ofp_info->est_out.c_str());
+        time_t off_time = atol(ofp_info->est_off.c_str());
+
+        auto out_tm = *std::gmtime(&out_time);
+        auto off_tm = *std::gmtime(&off_time);
+        char out[20], off[20];
+        strftime(out, sizeof(out), "%H:%M", &out_tm);
+        strftime(off, sizeof(off), "%H:%M", &off_tm);
+        std::string tmp_str = std::string("Out: ") + out + "  Off: " + off;
+        DL(0, tmp_str.c_str());
+
+        y -= 20;
 
         // D(aircraft_icao);
         DL(0, "Departure:"); DS(0, (ofp_info->origin + "/" + ofp_info->origin_rwy).c_str());
@@ -369,19 +331,19 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
         y -= 15;
 
         int pleft, ptop, pright, pbottom;
-        XPGetWidgetGeometry(getofp_widget, &pleft, &ptop, &pright, &pbottom);
+        XPGetWidgetGeometry(main_widget, &pleft, &ptop, &pright, &pbottom);
 
         if (y != pbottom) {
-            XPSetWidgetGeometry(getofp_widget, pleft, ptop, pright, y);
-            getofp_widget_ctx.h = ptop - y;
+            XPSetWidgetGeometry(main_widget, pleft, ptop, pright, y);
+            main_widget_ctx.h = ptop - y;
 
             // widgets are internally managed relative to the left lower corner.
             // Hence if we resize a container we must shift all childs accordingly.
             int delta = y - pbottom;
-            int nchild = XPCountChildWidgets(getofp_widget);
+            int nchild = XPCountChildWidgets(main_widget);
             for (int i = 0; i < nchild; i++) {
                 int cleft, ctop, cright, cbottom;
-                XPWidgetID cw = XPGetNthChildWidget(getofp_widget, i);
+                XPWidgetID cw = XPGetNthChildWidget(main_widget, i);
                 XPGetWidgetGeometry(cw, &cleft, &ctop, &cright, &cbottom);
                 XPSetWidgetGeometry(cw, cleft, ctop - delta, cright, cbottom - delta);
             }
@@ -396,7 +358,7 @@ GetOfpWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intpt
 static void
 CreateWidget()
 {
-    if (getofp_widget)
+    if (main_widget)
         return;
 
     int left = 200;
@@ -404,39 +366,34 @@ CreateWidget()
     int width = 450;
     int height = 300;
 
-    getofp_widget_ctx.l = left;
-    getofp_widget_ctx.t = top;
-    getofp_widget_ctx.w = width;
-    getofp_widget_ctx.h = height;
-
-    getofp_widget = XPCreateWidget(left, top, left + width, top - height,
+    main_widget = XPCreateWidget(left, top, left + width, top - height,
                                  0, "Simbrief Hub " VERSION, 1, NULL, xpWidgetClass_MainWindow);
-    getofp_widget_ctx.widget = getofp_widget;
+    main_widget_ctx.Set(main_widget, left, top, width, height);
 
-    XPSetWidgetProperty(getofp_widget, xpProperty_MainWindowHasCloseBoxes, 1);
-    XPAddWidgetCallback(getofp_widget, GetOfpWidgetCb);
+    XPSetWidgetProperty(main_widget, xpProperty_MainWindowHasCloseBoxes, 1);
+    XPAddWidgetCallback(main_widget, MainWidgetCb);
     left += 5; top -= 25;
 
     int left1 = left + 10;
     getofp_btn = XPCreateWidget(left1, top, left1 + 60, top - 30,
-                              1, "Fetch OFP", 0, getofp_widget, xpWidgetClass_Button);
-    XPAddWidgetCallback(getofp_btn, GetOfpWidgetCb);
+                                1, "Fetch OFP", 0, main_widget, xpWidgetClass_Button);
+    XPAddWidgetCallback(getofp_btn, MainWidgetCb);
 
     top -= 25;
     status_line = XPCreateWidget(left1, top, left + width - 10, top - 20,
-                              1, "", 0, getofp_widget, xpWidgetClass_Caption);
+                                 1, "", 0, main_widget, xpWidgetClass_Caption);
 
     top -= 20;
     display_widget = XPCreateCustomWidget(left + 10, top, left + width -20, top - height + 10,
-                                           1, "", 0, getofp_widget, GetOfpWidgetCb);
+                                          1, "", 0, main_widget, MainWidgetCb);
 }
 
 static void
 MenuCb(void *menu_ref, void *item_ref)
 {
     // create gui
-    if (item_ref == &getofp_widget) {
-        ShowWidget(getofp_widget_ctx);
+    if (item_ref == &main_widget) {
+        main_widget_ctx.Show();
         return;
     }
 
@@ -447,14 +404,9 @@ MenuCb(void *menu_ref, void *item_ref)
             int width = 150;
             int height = 100;
 
-            conf_widget_ctx.l = left;
-            conf_widget_ctx.t = top;
-            conf_widget_ctx.w = width;
-            conf_widget_ctx.h = height;
-
             conf_widget = XPCreateWidget(left, top, left + width, top - height,
                                          0, "SBH / Configuration", 1, NULL, xpWidgetClass_MainWindow);
-            conf_widget_ctx.widget = conf_widget;
+            conf_widget_ctx.Set(conf_widget, left, top, width, height);
 
             XPSetWidgetProperty(conf_widget, xpProperty_MainWindowHasCloseBoxes, 1);
             XPAddWidgetCallback(conf_widget, ConfWidgetCb);
@@ -475,7 +427,7 @@ MenuCb(void *menu_ref, void *item_ref)
         }
 
         XPSetWidgetDescriptor(pilot_id_input, pilot_id.c_str());
-        ShowWidget(conf_widget_ctx);
+        conf_widget_ctx.Show();
         return;
     }
 }
@@ -502,12 +454,12 @@ ToggleCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *
 
     LogMsg("toggle cmd called");
 
-    if (XPIsWidgetVisible(getofp_widget_ctx.widget)) {
-        XPHideWidget(getofp_widget_ctx.widget);
+    if (XPIsWidgetVisible(main_widget_ctx.widget)) {
+        main_widget_ctx.Hide();
         return 0;
     }
 
-    ShowWidget(getofp_widget_ctx);
+    main_widget_ctx.Show();
     return 0;
 }
 
@@ -580,7 +532,6 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     strcpy(out_desc, "A central resource of simbrief data for other plugins");
 
     // map standard datarefs
-    vr_enabled_dr = XPLMFindDataRef("sim/graphics/VR/enabled");
     acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
 
     // load preferences
@@ -594,7 +545,7 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
     XPLMMenuID sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
     XPLMAppendMenuItem(sbh_menu, "Configure", &conf_widget, 0);
-    XPLMAppendMenuItem(sbh_menu, "Show widget", &getofp_widget, 0);
+    XPLMAppendMenuItem(sbh_menu, "Show widget", &main_widget, 0);
 
     XPLMCommandRef cmdr = XPLMCreateCommand("sbh/toggle", "Toggle Simbrief Hub widget");
     XPLMRegisterCommandHandler(cmdr, ToggleCmdCb, 0, NULL);
