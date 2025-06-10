@@ -501,7 +501,7 @@ DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
 }
 
 // int accessor
-// ref = pointer to int
+// ref = offset of field (int) within OfpInfo
 static int
 IntAcc(XPLMDataRef ref)
 {
@@ -521,6 +521,7 @@ IntAcc(XPLMDataRef ref)
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
 {
+    LogMsgInit("sbh");
     LogMsg("startup " VERSION);
 
     // Always use Unix-native paths on the Mac!
@@ -604,6 +605,12 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
 PLUGIN_API void
 XPluginStop(void)
 {
+    // As an async can not be cancelled we have to wait
+    // and collect the status. Otherwise X Plane won't shut down.
+    while (CheckAsyncDownload()) {
+        LogMsg("... waiting for async download to finish");
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
 }
 
 PLUGIN_API void
