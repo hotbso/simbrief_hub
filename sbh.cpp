@@ -234,6 +234,8 @@ MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
         return 1;
 
     if ((widget_id == getofp_btn) && (msg == xpMsg_PushButtonPressed)) {
+        if (pilot_id.empty())
+            return 1;
         XPSetWidgetDescriptor(status_line, "Fetching...");
         FetchOfp();
     }
