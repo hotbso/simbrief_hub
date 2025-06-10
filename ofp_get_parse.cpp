@@ -58,6 +58,10 @@ OfpInfo::Dump() const
         L(est_off);
         L(est_on);
         L(est_in);
+        L(fuel_taxi);
+        L(max_zfw);
+        L(max_tow);
+
     } else
         LogMsg("%s", status.c_str());
 #undef L
@@ -145,6 +149,7 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
 
     if (POSITION("fuel")) {
         EXTRACT("plan_ramp", fuel_plan_ramp);
+        EXTRACT("taxi", fuel_taxi);
     }
 
     if (POSITION("origin")) {
@@ -178,6 +183,8 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
         EXTRACT("pax_count", pax_count);
         EXTRACT("freight_added", freight);
         EXTRACT("payload", payload);
+        EXTRACT("max_zfw", max_zfw);
+        EXTRACT("max_tow", max_tow);
     }
 
     if (POSITION("times")) {

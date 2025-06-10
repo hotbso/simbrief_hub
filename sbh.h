@@ -58,7 +58,9 @@ struct OfpInfo
     F(est_off);
     F(est_on);
     F(est_in);
-
+    F(fuel_taxi);
+    F(max_zfw);
+    F(max_tow);
     void Dump() const;
 };
 #undef F

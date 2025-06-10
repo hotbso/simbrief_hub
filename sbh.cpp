@@ -587,6 +587,9 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     DATA_DREF(est_off);
     DATA_DREF(est_on);
     DATA_DREF(est_in);
+    DATA_DREF(fuel_taxi);
+    DATA_DREF(max_zfw);
+    DATA_DREF(max_tow);
 
     XPLMRegisterDataAccessor("sbh/stale", xplmType_Int, 0, IntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
