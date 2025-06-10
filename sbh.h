@@ -66,5 +66,4 @@ struct OfpInfo
 #undef F
 
 extern bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info);
-extern bool HttpGet(const std::string& url, std::string& data, int timeout);
 

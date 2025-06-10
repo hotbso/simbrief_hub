@@ -25,6 +25,7 @@
 #include <string>
 
 #include "sbh.h"
+#include "http_get.h"
 
 static int seqno;
 
