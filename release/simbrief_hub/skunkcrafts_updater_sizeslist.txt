@@ -1,0 +1,4 @@
+win_x64/simbrief_hub.xpl|2953146
+README.html|710
+mac_x64/simbrief_hub.xpl|181112
+lin_x64/simbrief_hub.xpl|119152
