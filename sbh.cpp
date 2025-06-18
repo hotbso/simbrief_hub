@@ -490,7 +490,7 @@ DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
         return 0;
 
     std::string *data = static_cast<std::string *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
-    int len = data->length();
+    int len = data->length() + 1;   // we always offer a trailing 0
     if (values == nullptr)
         return len;
 
