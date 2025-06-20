@@ -44,6 +44,8 @@
 
 #include "widget_ctx.h"
 
+const char *log_msg_prefix = "sbh: ";
+
 static XPWidgetID main_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
@@ -523,7 +525,6 @@ IntAcc(XPLMDataRef ref)
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
 {
-    LogMsgInit("sbh");
     LogMsg("startup " VERSION);
 
     // Always use Unix-native paths on the Mac!
