@@ -63,7 +63,7 @@ static std::string pilot_id;
 // Everything is synchronously fired by the flightloop so we don't need mutexes
 
 // these 2 variables are owned and written by the main (= flightloop) thread
-static bool download_active;
+static bool ofp_download_active;
 static std::unique_ptr<OfpInfo> ofp_info;
 
 // use of this variable is alternate
@@ -73,7 +73,7 @@ static std::unique_ptr<OfpInfo> ofp_info;
 static std::unique_ptr<OfpInfo> ofp_info_new;
 
 // variable under system control
-static std::future<bool> download_future;
+static std::future<bool> ofp_download_future;
 
 static void
 SavePrefs()
@@ -129,14 +129,14 @@ ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
 // Check for download and activate the new ofp
 // return true if download is still in progress
 bool
-CheckAsyncDownload()
+OfpCheckAsyncDownload()
 {
-    if (download_active) {
-        if (std::future_status::ready != download_future.wait_for(std::chrono::seconds::zero()))
+    if (ofp_download_active) {
+        if (std::future_status::ready != ofp_download_future.wait_for(std::chrono::seconds::zero()))
             return true;
 
-        download_active = false;
-        [[maybe_unused]] bool res = download_future.get();
+        ofp_download_active = false;
+        [[maybe_unused]] bool res = ofp_download_future.get();
         ofp_info = std::move(ofp_info_new);
 
         LogMsg("CheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
@@ -161,11 +161,11 @@ CheckAsyncDownload()
         ofp_info->altitude = buffer;
     }
 
-    return download_active;
+    return ofp_download_active;
 }
 
 static bool
-AsyncOfpGetParse()
+OfpAsyncGetParse()
 {
     return OfpGetParse(pilot_id, ofp_info_new);
 }
@@ -178,13 +178,13 @@ FetchOfp(void)
         return;
     }
 
-    if (download_active) {
+    if (ofp_download_active) {
         LogMsg("Download is already in progress, request ignored");
         return;
     }
 
-    download_future = std::async(std::launch::async, AsyncOfpGetParse);
-    download_active = true;
+    ofp_download_future = std::async(std::launch::async, OfpAsyncGetParse);
+    ofp_download_active = true;
     XPLMScheduleFlightLoop(flight_loop_id, 1.0f, 1);
 }
 
@@ -474,25 +474,17 @@ FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
              [[maybe_unused]] void *inRefcon)
 {
     LogMsg("flight loop");
-    if (CheckAsyncDownload())
+    if (OfpCheckAsyncDownload())
         return 1.0f;
 
     return 0; // unschedule
 }
 
-// data accessor
-// ref = offset of field (std::string) within OfpInfo
+// Generic data accessor helper returning string data
 static int
-DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
+GenericDataAcc(const std::string *data, void *values, int ofs, int n)
 {
-    if (ofp_info == nullptr)
-        return 0;
-
-    if (ofp_info->seqno == 0)    // not even stale data
-        return 0;
-
-    std::string *data = static_cast<std::string *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
-    int len = data->length() + 1;   // we always offer a trailing 0
+   int len = data->length() + 1;   // we always offer a trailing 0
     if (values == nullptr)
         return len;
 
@@ -502,12 +494,27 @@ DataAcc(XPLMDataRef ref, void *values, int ofs, int n)
     n = std::min(n, len - ofs);
     memcpy(values, data->c_str() + ofs, n);
     return n;
-}
+ }
+
+// data accessor
+// ref = offset of field (std::string) within OfpInfo
+static int
+OfpDataAcc(XPLMDataRef ref, void *values, int ofs, int n)
+{
+    if (ofp_info == nullptr)
+        return 0;
+
+    if (ofp_info->seqno == 0)    // not even stale data
+        return 0;
+
+    const std::string *data = static_cast<const std::string *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
+    return GenericDataAcc(data, values, ofs, n);
+ }
 
 // int accessor
 // ref = offset of field (int) within OfpInfo
 static int
-IntAcc(XPLMDataRef ref)
+OfpIntAcc(XPLMDataRef ref)
 {
     if (ofp_info == nullptr)
         return 0;
@@ -517,10 +524,10 @@ IntAcc(XPLMDataRef ref)
 }
 
 /// ------------------------------------------------------ API --------------------------------------------
-#define DATA_DREF(f) \
+#define OFP_DATA_DREF(f) \
     XPLMRegisterDataAccessor("sbh/" #f, xplmType_Data, 0, NULL, NULL, \
                              NULL, NULL, NULL, NULL, NULL, NULL, \
-                             NULL, NULL, DataAcc, NULL, (void *)offsetof(OfpInfo, f), NULL)
+                             NULL, NULL, OfpDataAcc, NULL, (void *)offsetof(OfpInfo, f), NULL)
 
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
@@ -561,44 +568,44 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
         {sizeof(XPLMCreateFlightLoop_t), xplm_FlightLoop_Phase_BeforeFlightModel, FlightLoopCb, NULL};
     flight_loop_id = XPLMCreateFlightLoop(&create_flight_loop);
 
-    DATA_DREF(units);
-    DATA_DREF(status);
-    DATA_DREF(icao_airline);
-    DATA_DREF(flight_number);
-    DATA_DREF(aircraft_icao);
-    DATA_DREF(max_passengers);
-    DATA_DREF(fuel_plan_ramp);
-    DATA_DREF(origin);
-    DATA_DREF(origin_rwy);
-    DATA_DREF(destination);
-    DATA_DREF(alternate);
-    DATA_DREF(destination_rwy);
-    DATA_DREF(ci);
-    DATA_DREF(altitude);
-    DATA_DREF(tropopause);
-    DATA_DREF(isa_dev);
-    DATA_DREF(wind_component);
-    DATA_DREF(oew);
-    DATA_DREF(pax_count);
-    DATA_DREF(freight);
-    DATA_DREF(payload);
-    DATA_DREF(route);
-    DATA_DREF(alt_route);
-    DATA_DREF(time_generated);
-    DATA_DREF(est_time_enroute);
-    DATA_DREF(est_out);
-    DATA_DREF(est_off);
-    DATA_DREF(est_on);
-    DATA_DREF(est_in);
-    DATA_DREF(fuel_taxi);
-    DATA_DREF(max_zfw);
-    DATA_DREF(max_tow);
+    OFP_DATA_DREF(units);
+    OFP_DATA_DREF(status);
+    OFP_DATA_DREF(icao_airline);
+    OFP_DATA_DREF(flight_number);
+    OFP_DATA_DREF(aircraft_icao);
+    OFP_DATA_DREF(max_passengers);
+    OFP_DATA_DREF(fuel_plan_ramp);
+    OFP_DATA_DREF(origin);
+    OFP_DATA_DREF(origin_rwy);
+    OFP_DATA_DREF(destination);
+    OFP_DATA_DREF(alternate);
+    OFP_DATA_DREF(destination_rwy);
+    OFP_DATA_DREF(ci);
+    OFP_DATA_DREF(altitude);
+    OFP_DATA_DREF(tropopause);
+    OFP_DATA_DREF(isa_dev);
+    OFP_DATA_DREF(wind_component);
+    OFP_DATA_DREF(oew);
+    OFP_DATA_DREF(pax_count);
+    OFP_DATA_DREF(freight);
+    OFP_DATA_DREF(payload);
+    OFP_DATA_DREF(route);
+    OFP_DATA_DREF(alt_route);
+    OFP_DATA_DREF(time_generated);
+    OFP_DATA_DREF(est_time_enroute);
+    OFP_DATA_DREF(est_out);
+    OFP_DATA_DREF(est_off);
+    OFP_DATA_DREF(est_on);
+    OFP_DATA_DREF(est_in);
+    OFP_DATA_DREF(fuel_taxi);
+    OFP_DATA_DREF(max_zfw);
+    OFP_DATA_DREF(max_tow);
 
-    XPLMRegisterDataAccessor("sbh/stale", xplmType_Int, 0, IntAcc, NULL,
+    XPLMRegisterDataAccessor("sbh/stale", xplmType_Int, 0, OfpIntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, stale), NULL);
 
-    XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, IntAcc, NULL,
+    XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, OfpIntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, seqno), NULL);
     CreateWidget();
@@ -606,14 +613,14 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
         XPSetWidgetDescriptor(status_line, "Pilot ID is not configured!");
     return 1;
 }
-#undef DATA_DREF
+#undef OFP_DATA_DREF
 
 PLUGIN_API void
 XPluginStop(void)
 {
     // As an async can not be cancelled we have to wait
     // and collect the status. Otherwise X Plane won't shut down.
-    while (CheckAsyncDownload()) {
+    while (OfpCheckAsyncDownload()) {
         LogMsg("... waiting for async download to finish");
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }
