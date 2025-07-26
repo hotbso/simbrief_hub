@@ -29,7 +29,7 @@ using json = nlohmann::json;
 #include "sbh.h"
 #include "http_get.h"
 
-static const char *def_realm_server_cfg = R"({"realm_servers": ["https://app.vacdm.net/api/vdgs/nool", "https://aman.vatsimspain.es/CDM_feeds.json"]})";
+static const char *def_realm_server_cfg = R"({"realm_servers": ["https://aman.vatsimspain.es/CDM_feeds.json", "https://app.vacdm.net/api/vdgs/nool"]})";
 
 // cdm realm, vACDM, vatsimspain, ...
 struct Realm {
@@ -39,6 +39,20 @@ struct Realm {
 
 static std::vector<Realm> realm_servers;
 
+void
+CdmInfo::Dump() const
+{
+    if (status == "Success") {
+#define L(field) LogMsg(#field ": %s", field.c_str())
+        L(status);
+        L(tobt);
+        L(tsat);
+        L(runway);
+        L(sid);
+    } else
+        LogMsg("%s", status.c_str());
+#undef L
+}
 // Load airport feeds for a realm
 static void
 LoadRealm(Realm& realm)
@@ -102,16 +116,20 @@ CdmInit()
     return true;
 }
 
+// get and parse cdm data for airport/flight
+// *** runs in an async ***
 bool
-CdmGetParse(const std::string& icao, const std::string& callsign, std::unique_ptr<CdmInfo>& Cdm_info)
+CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std::unique_ptr<CdmInfo>& cdm_info)
 {
-    const auto feed = FindFeed(icao);
+    cdm_info = std::make_unique<CdmInfo>();
+
+    const auto feed = FindFeed(arpt_icao);
     if (feed.empty()) {
-        LogMsg("Feed for %s not found", icao.c_str());
+        LogMsg("Feed for %s not found", arpt_icao.c_str());
         return false;
     }
 
-    LogMsg("Feed for %s: %s", icao.c_str(), feed.c_str());
+    LogMsg("Feed for %s: %s", arpt_icao.c_str(), feed.c_str());
 
     //load flight data
     std::string data;
@@ -127,17 +145,25 @@ CdmGetParse(const std::string& icao, const std::string& callsign, std::unique_pt
     LogMsg("got flight data %d bytes", len);
     try {
         json flights = json::parse(data).at("flights");
+        std::cout << flights.dump(4) << std::endl;
         for (const auto& f : flights) {
             if (f.at("callsign") == callsign) {
                 std::cout << f.dump(4) << std::endl;
+#define EXTRACT(fn) cdm_info->fn = f.at(#fn)
+                EXTRACT(tobt);
+                EXTRACT(tsat);
+                EXTRACT(runway);
+                EXTRACT(sid);
+                cdm_info->status = "Success";
                 return true;
+#undef EXTRACT
             }
         }
-
-        LogMsg("flight '%s' not present on '%s'", callsign.c_str(), icao.c_str());
+        LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
     } catch (std::exception& e) {
         LogMsg("Exception: '%s'", e.what());
     }
 
+    cdm_info->status = "not found";
     return false;
 }

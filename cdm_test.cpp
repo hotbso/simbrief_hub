@@ -38,19 +38,26 @@ main(int argc, char **argv)
         exit(1);
     }
 
-    const std::string airport = argv[1];
-    const std::string callsign = argv[2];
-
     if (!CdmInit()) {
         LogMsg("CdmInit() failed, bye!");
         exit(1);
     }
 
-#if 0
-    CdmGetParse("EDDL", callsign, cdm_info);
-    CdmGetParse("LEPA", callsign, cdm_info);
-    CdmGetParse("EDDH", callsign, cdm_info);
-#endif
+    std::string airport = argv[1];
+    std::string callsign = argv[2];
+
     CdmGetParse(airport, callsign, cdm_info);
+    if (cdm_info != nullptr)
+        cdm_info->Dump();
+
+    while (true) {
+        std::cout << "Enter  airport: ";
+        std::cin >> airport;
+        std::cout << "Enter callsign: ";
+        std::cin >> callsign;
+        CdmGetParse(airport, callsign, cdm_info);
+        if (cdm_info != nullptr)
+            cdm_info->Dump();
+    }
     return 0;
 }
