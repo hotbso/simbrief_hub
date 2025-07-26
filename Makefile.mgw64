@@ -38,7 +38,9 @@ $(OBJDIR)/%.o: %.c $(DEPDIR)/%.d version.mak | $(DEPDIR)
 $(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d version.mak | $(DEPDIR)
 	$(COMPILE.cpp) $(CXXFLAGS) -o $@ -c $<
 
-all: $(TARGET)
+install: $(TARGET)
+
+all: install cdm_test.exe
     $(shell [ -d $(OBJDIR) ] || mkdir -p $(OBJDIR))
 
 XPL_DIR=/E/X-Plane-12-test
@@ -52,6 +54,12 @@ $(DEPDIR): ; @mkdir -p $@
 
 $(DEPFILES):
 include $(wildcard $(DEPFILES))
+
+cdm_test.exe: cdm_test.cpp cdm_get_parse.cpp ../xplib/log_msg.cpp $(HEADERS)
+	$(CXX) $(CXXSTD) -Wall -fdiagnostics-color -Wno-format-overflow \
+    -I../xplib -I$(SDK)/CHeaders/XPLM -DIBM=1 $(DEFINES) \
+    -DWINDOWS -DWIN32 -DLOCAL_DEBUGSTRING -o cdm_test.exe \
+        cdm_test.cpp cdm_get_parse.cpp $(OBJDIR)/http_get.o ../xplib/log_msg.cpp -lWinhttp
 
 clean:
 	rm -f $(TARGET) $(OBJDIR)/*.o*
