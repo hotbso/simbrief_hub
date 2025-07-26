@@ -1,0 +1,14 @@
+{
+    "realms": [
+        {
+            "name": "spain",
+            "protocol": "nool",
+            "url": "https://aman.vatsimspain.es/CDM_feeds.json"
+        },
+        {
+            "name": "vACDM",
+            "protocol": "nool",
+            "url": "https://app.vacdm.net/api/vdgs/nool"
+        }
+    ]
+}

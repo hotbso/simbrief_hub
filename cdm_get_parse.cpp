@@ -29,10 +29,9 @@ using json = nlohmann::json;
 #include "sbh.h"
 #include "http_get.h"
 
-static const char *def_realm_server_cfg = R"({"realm_servers": ["https://aman.vatsimspain.es/CDM_feeds.json", "https://app.vacdm.net/api/vdgs/nool"]})";
-
 // cdm realm, vACDM, vatsimspain, ...
 struct Realm {
+    std::string name;
     std::string server_url;
     json arpt_feeds;
 };
@@ -59,6 +58,8 @@ LoadRealm(Realm& realm)
 {
     if (!realm.arpt_feeds.empty())
         return;
+
+    LogMsg("Loading realm: '%s'", realm.name.c_str());
 
     std::string data;
     data.reserve(20 * 1024);
@@ -104,15 +105,31 @@ FindFeed(const std::string& icao)
 }
 
 bool
-CdmInit()
+CdmInit(const std::string& cfg_path)
 {
-    // TODO: possible overwrite with a file
-    json realm_server_cfg = json::parse(def_realm_server_cfg);
-    std::cout << realm_server_cfg.dump(4) << std::endl;
-    for (const auto& s : realm_server_cfg.at("realm_servers")) {
-        realm_servers.push_back(Realm{s});
-    }
+    std::ifstream f(cfg_path);
+    if (f.fail())
+        return false;
 
+    try {
+        json cfg = json::parse(f);
+        //std::cout << cfg.dump(4) << std::endl;
+        for (const auto& r : cfg.at("realms")) {
+            const std::string name = r.at("name");
+            const std::string protocol = r.at("protocol");
+            const std::string url = r.at("url");
+            LogMsg("realm: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
+            if (protocol != "nool") {
+                LogMsg("Sorry, only 'nool' is currently supported");
+                return false;
+            }
+
+            realm_servers.push_back(Realm{name, url});
+        }
+    } catch (std::exception& e) {
+        LogMsg("Exception: '%s'", e.what());
+        return false;
+    }
     return true;
 }
 
