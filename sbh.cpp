@@ -51,29 +51,39 @@ static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
 static WidgetCtx main_widget_ctx, conf_widget_ctx;
 
-static XPLMDataRef acf_icao_dr;
+static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, y_agl_dr;
 static XPLMFlightLoopID flight_loop_id;
 
 static int error_disabled;
 
-static std::string pref_path;
-static std::string pilot_id;
+static std::string xp_dir, base_dir, pref_path;
+static std::string pilot_id, cdm_airport, cdm_callsign;
+static int cdm_seqno;
+
+static float now;
 
 // A note on async processing:
 // Everything is synchronously fired by the flightloop so we don't need mutexes
 
-// these 2 variables are owned and written by the main (= flightloop) thread
+// these variables are owned and written by the main (= flightloop) thread
 static bool ofp_download_active;
 static std::unique_ptr<OfpInfo> ofp_info;
+static bool cdm_download_active;
+static std::unique_ptr<CdmInfo> cdm_info;
 
 // use of this variable is alternate
 // If download_active:
 //  true:  written by the download thread
 //  false: read and written by the main thread
 static std::unique_ptr<OfpInfo> ofp_info_new;
+static std::unique_ptr<CdmInfo> cdm_info_new;
 
 // variable under system control
 static std::future<bool> ofp_download_future;
+static std::future<bool> cdm_download_future;
+
+// forwards
+static void FetchCdm(void);
 
 static void
 SavePrefs()
@@ -159,15 +169,43 @@ OfpCheckAsyncDownload()
         char buffer[100];
         snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
         ofp_info->altitude = buffer;
+        cdm_airport = ofp_info->origin;
+        cdm_callsign = ofp_info->icao_airline + ofp_info->flight_number;
+        FetchCdm();
     }
 
     return ofp_download_active;
 }
 
-static bool
-OfpAsyncGetParse()
+//
+// Check for download and activate the new cdm info
+// return true if download is still in progress
+bool
+CdmCheckAsyncDownload()
 {
+    if (cdm_download_active) {
+        if (std::future_status::ready != cdm_download_future.wait_for(std::chrono::seconds::zero()))
+            return true;
+
+        cdm_download_active = false;
+        [[maybe_unused]] bool res = cdm_download_future.get();
+        cdm_info = std::move(cdm_info_new);
+
+        LogMsg("CheckAsyncDownload(): Download status: %s", cdm_info->status.c_str());
+        if (cdm_info->status != "Success")
+            return false; // no download active
+        cdm_info->seqno = ++cdm_seqno;
+    }
+
+    return cdm_download_active;
+}
+
+static bool OfpAsyncGetParse() {
     return OfpGetParse(pilot_id, ofp_info_new);
+}
+
+static bool CdmAsyncGetParse() {
+    return CdmGetParse(cdm_airport, cdm_callsign, cdm_info_new);
 }
 
 static void
@@ -185,7 +223,21 @@ FetchOfp(void)
 
     ofp_download_future = std::async(std::launch::async, OfpAsyncGetParse);
     ofp_download_active = true;
-    XPLMScheduleFlightLoop(flight_loop_id, 1.0f, 1);
+}
+
+static void FetchCdm() {
+    if (pilot_id.empty()) {
+        LogMsg("pilot_id is not configured!");
+        return;
+    }
+
+    if (cdm_download_active) {
+        LogMsg("Download is already in progress, request ignored");
+        return;
+    }
+
+    cdm_download_future = std::async(std::launch::async, CdmAsyncGetParse);
+    cdm_download_active = true;
 }
 
 static int
@@ -473,11 +525,11 @@ FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
              [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop, [[maybe_unused]] int inCounter,
              [[maybe_unused]] void *inRefcon)
 {
-    LogMsg("flight loop");
-    if (OfpCheckAsyncDownload())
-        return 1.0f;
-
-    return 0; // unschedule
+    //LogMsg("flight loop");
+    now = XPLMGetDataf(total_running_time_sec_dr);
+    OfpCheckAsyncDownload();
+    CdmCheckAsyncDownload();
+    return 1.0f;
 }
 
 // Generic data accessor helper returning string data
@@ -523,11 +575,42 @@ OfpIntAcc(XPLMDataRef ref)
     return *data;
 }
 
+// data accessor
+// ref = offset of field (std::string) within CdmInfo
+static int
+CdmDataAcc(XPLMDataRef ref, void *values, int ofs, int n)
+{
+    if (cdm_info == nullptr)
+        return 0;
+
+    if (cdm_info->seqno == 0)    // not even stale data
+        return 0;
+
+    const std::string *data = static_cast<const std::string *>((void *)((char *)cdm_info.get() + (uint64_t)ref));
+    return GenericDataAcc(data, values, ofs, n);
+ }
+
+// int accessor
+// ref = offset of field (int) within OfpInfo
+static int
+CdmIntAcc(XPLMDataRef ref)
+{
+    if (cdm_info == nullptr)
+        return 0;
+
+    int *data = static_cast<int *>((void *)((char *)cdm_info.get() + (uint64_t)ref));
+    return *data;
+}
+
 /// ------------------------------------------------------ API --------------------------------------------
 #define OFP_DATA_DREF(f) \
     XPLMRegisterDataAccessor("sbh/" #f, xplmType_Data, 0, NULL, NULL, \
                              NULL, NULL, NULL, NULL, NULL, NULL, \
                              NULL, NULL, OfpDataAcc, NULL, (void *)offsetof(OfpInfo, f), NULL)
+#define CDM_DATA_DREF(f) \
+    XPLMRegisterDataAccessor("sbh/cdm/" #f, xplmType_Data, 0, NULL, NULL, \
+                             NULL, NULL, NULL, NULL, NULL, NULL, \
+                             NULL, NULL, CdmDataAcc, NULL, (void *)offsetof(CdmInfo, f), NULL)
 
 PLUGIN_API int
 XPluginStart(char *out_name, char *out_sig, char *out_desc)
@@ -542,16 +625,25 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     strcpy(out_sig, "sbh-hotbso");
     strcpy(out_desc, "A central resource of simbrief data for other plugins");
 
-    // map standard datarefs
-    acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
-
-    // load preferences
+    // set various path
     char buffer[2048];
-    XPLMGetPrefsPath(buffer);
-    XPLMExtractFileAndPath(buffer);
-    pref_path = std::string(buffer) + "/simbrief_hub.prf";
+	XPLMGetSystemPath(buffer);
+    xp_dir = std::string(buffer);
+    base_dir = xp_dir + "Resources/plugins/simbrief_hub/";
+    pref_path = xp_dir + "Output/preferences/simbrief_hub.prf";
+
+    if (! (CdmInit(base_dir + "cdm_cfg.json") || CdmInit(base_dir + "cdm_cfg.default.json"))) {
+        LogMsg("Can't find cdm_cfg.json");
+        return 0;
+    }
+
     LoadPrefs();
 
+    // map standard datarefs
+    acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
+    y_agl_dr = XPLMFindDataRef("sim/flightmodel2/position/y_agl");
+    total_running_time_sec_dr = XPLMFindDataRef("sim/time/total_running_time_sec");
+    // build menu
     XPLMMenuID menu = XPLMFindPluginsMenu();
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
     XPLMMenuID sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
@@ -568,6 +660,8 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
         {sizeof(XPLMCreateFlightLoop_t), xplm_FlightLoop_Phase_BeforeFlightModel, FlightLoopCb, NULL};
     flight_loop_id = XPLMCreateFlightLoop(&create_flight_loop);
 
+    // create own datarefs
+    // XPLMStart must succeed beyond this point
     OFP_DATA_DREF(units);
     OFP_DATA_DREF(status);
     OFP_DATA_DREF(icao_airline);
@@ -608,9 +702,28 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     XPLMRegisterDataAccessor("sbh/seqno", xplmType_Int, 0, OfpIntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, seqno), NULL);
+
+    CDM_DATA_DREF(feed);
+    CDM_DATA_DREF(status);
+    CDM_DATA_DREF(tobt);
+    CDM_DATA_DREF(tsat);
+    CDM_DATA_DREF(runway);
+    CDM_DATA_DREF(sid);
+
+    XPLMRegisterDataAccessor("sbh/cdm/stale", xplmType_Int, 0, CdmIntAcc, NULL,
+                             NULL, NULL, NULL, NULL, NULL, NULL,
+                             NULL, NULL, NULL, NULL, (void *)offsetof(CdmInfo, stale), NULL);
+
+    XPLMRegisterDataAccessor("sbh/cdm/seqno", xplmType_Int, 0, CdmIntAcc, NULL,
+                             NULL, NULL, NULL, NULL, NULL, NULL,
+                             NULL, NULL, NULL, NULL, (void *)offsetof(CdmInfo, seqno), NULL);
+
     CreateWidget();
-    if (pilot_id.empty())
+    if (pilot_id.empty()) {
         XPSetWidgetDescriptor(status_line, "Pilot ID is not configured!");
+    }
+
+    XPLMScheduleFlightLoop(flight_loop_id, 1.0f, 1);
     return 1;
 }
 #undef OFP_DATA_DREF
@@ -620,7 +733,7 @@ XPluginStop(void)
 {
     // As an async can not be cancelled we have to wait
     // and collect the status. Otherwise X Plane won't shut down.
-    while (OfpCheckAsyncDownload()) {
+    while (OfpCheckAsyncDownload() || CdmCheckAsyncDownload()) {
         LogMsg("... waiting for async download to finish");
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }

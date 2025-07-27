@@ -68,6 +68,7 @@ struct CdmInfo
 {
     int stale{false};   // int!, is accessed by a integer accessor
     int seqno{0};       // incremented after each successfull fetch
+    F(feed);
     F(status);
     F(tobt);
     F(tsat);

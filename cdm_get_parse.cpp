@@ -24,7 +24,6 @@
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
-#include <iostream>
 #include <vector>
 #include "sbh.h"
 #include "http_get.h"
@@ -43,6 +42,7 @@ CdmInfo::Dump() const
 {
     if (status == "Success") {
 #define L(field) LogMsg(#field ": %s", field.c_str())
+        L(feed);
         L(status);
         L(tobt);
         L(tsat);
@@ -52,6 +52,7 @@ CdmInfo::Dump() const
         LogMsg("%s", status.c_str());
 #undef L
 }
+
 // Load airport feeds for a realm
 static void
 LoadRealm(Realm& realm)
@@ -147,6 +148,7 @@ CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std::uniq
     }
 
     LogMsg("Feed for %s: %s", arpt_icao.c_str(), feed.c_str());
+    cdm_info->feed = feed;
 
     //load flight data
     std::string data;
@@ -162,16 +164,18 @@ CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std::uniq
     LogMsg("got flight data %d bytes", len);
     try {
         json flights = json::parse(data).at("flights");
-        std::cout << flights.dump(4) << std::endl;
+        //LogMsgRaw(flights.dump(4));
         for (const auto& f : flights) {
             if (f.at("callsign") == callsign) {
-                std::cout << f.dump(4) << std::endl;
+                LogMsgRaw(f.dump(4));
 #define EXTRACT(fn) cdm_info->fn = f.at(#fn)
                 EXTRACT(tobt);
                 EXTRACT(tsat);
                 EXTRACT(runway);
                 EXTRACT(sid);
                 cdm_info->status = "Success";
+                LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), feed.c_str());
+                cdm_info->Dump();
                 return true;
 #undef EXTRACT
             }

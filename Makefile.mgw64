@@ -55,11 +55,11 @@ $(DEPDIR): ; @mkdir -p $@
 $(DEPFILES):
 include $(wildcard $(DEPFILES))
 
-cdm_test.exe: cdm_test.cpp cdm_get_parse.cpp ../xplib/log_msg.cpp $(HEADERS)
+cdm_test.exe: cdm_test.cpp  $(OBJDIR)/cdm_get_parse.o ../xplib/log_msg.cpp $(HEADERS)
 	$(CXX) $(CXXSTD) -Wall -fdiagnostics-color -Wno-format-overflow \
     -I../xplib -I$(SDK)/CHeaders/XPLM -DIBM=1 $(DEFINES) \
     -DWINDOWS -DWIN32 -DLOCAL_DEBUGSTRING -o cdm_test.exe \
-        cdm_test.cpp cdm_get_parse.cpp $(OBJDIR)/http_get.o ../xplib/log_msg.cpp -lWinhttp
+        cdm_test.cpp $(OBJDIR)/cdm_get_parse.o $(OBJDIR)/http_get.o ../xplib/log_msg.cpp -lWinhttp
 
 clean:
 	rm -f $(TARGET) $(OBJDIR)/*.o*
