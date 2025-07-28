@@ -1,4 +1,12 @@
 {
+    "hosts" : [
+        {
+            "name": "EKCH",
+            "protocol": "vacdm_v1",
+            "url": "https://cdm.vatsim-scandinavia.org"
+        }
+    ],
+
     "realms": [
         {
             "name": "spain",

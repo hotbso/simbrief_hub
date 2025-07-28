@@ -52,6 +52,8 @@ static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 static WidgetCtx main_widget_ctx, conf_widget_ctx;
 
 static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, y_agl_dr;
+static XPLMDataRef xpilot_status_dr, xpilot_callsign_dr;
+
 static XPLMFlightLoopID flight_loop_id;
 
 static int error_disabled;
@@ -643,6 +645,9 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
     y_agl_dr = XPLMFindDataRef("sim/flightmodel2/position/y_agl");
     total_running_time_sec_dr = XPLMFindDataRef("sim/time/total_running_time_sec");
+    xpilot_status_dr = XPLMFindDataRef("xpilot/login/status");
+    xpilot_callsign_dr = XPLMFindDataRef("xpilot/login/callsign");
+
     // build menu
     XPLMMenuID menu = XPLMFindPluginsMenu();
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
@@ -709,10 +714,6 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     CDM_DATA_DREF(tsat);
     CDM_DATA_DREF(runway);
     CDM_DATA_DREF(sid);
-
-    XPLMRegisterDataAccessor("sbh/cdm/stale", xplmType_Int, 0, CdmIntAcc, NULL,
-                             NULL, NULL, NULL, NULL, NULL, NULL,
-                             NULL, NULL, NULL, NULL, (void *)offsetof(CdmInfo, stale), NULL);
 
     XPLMRegisterDataAccessor("sbh/cdm/seqno", xplmType_Int, 0, CdmIntAcc, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL,
