@@ -51,9 +51,9 @@ main(int argc, char **argv)
         cdm_info->Dump();
 
     while (true) {
-        std::cout << "Enter  airport: ";
+        std::cout << "Enter  airport callsign: ";
         std::cin >> airport;
-        std::cout << "Enter callsign: ";
+        //std::cout << "Enter callsign: ";
         std::cin >> callsign;
         CdmGetParse(airport, callsign, cdm_info);
         if (cdm_info != nullptr)

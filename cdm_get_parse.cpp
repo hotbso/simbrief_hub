@@ -28,6 +28,9 @@ using json = nlohmann::json;
 #include "sbh.h"
 #include "http_get.h"
 
+// https://github.com/rpuig2001/CDM
+// https://github.com/vACDM/vacdm-server
+
 enum CdmProtocol {
     kProtoInvalid,
     kProtoNool,
@@ -36,10 +39,12 @@ enum CdmProtocol {
 
 // cdm realm, vACDM, vatsimspain, ...
 struct Realm {
+    // keep these 3 in order
     std::string name;
     std::string server_url;
-    json arpt_feeds;
     CdmProtocol proto;
+
+    json arpt_feeds;
 };
 
 // single host,e.g. EKCH running vACDM software
@@ -110,7 +115,7 @@ FindFeed(const std::string& icao)
         proto_c = h.proto;
         return std::make_pair(feed_c, proto_c);
     } catch (std::out_of_range& e) {
-        return std::make_pair("", kProtoInvalid);
+        // FALLTHROUGH
     }
 
     for (auto& r : realm_servers) {
@@ -125,7 +130,6 @@ FindFeed(const std::string& icao)
             proto_c = r.proto;
             return std::make_pair(feed_c, proto_c);
         } catch (json::out_of_range &e) {
-            //std::cerr << e.what() << std::endl;
             continue;
         }
     }
@@ -178,7 +182,7 @@ CdmInit(const std::string& cfg_path)
 // extract HHMM from something like "2025-07-28T09:45:06.694Z"
 static std::string ExtractHHMM(const std::string& time) {
     if (time == "1969-12-31T23:59:59.999Z" || time.length() < 16)
-    return "";
+        return "";
 
     return time.substr(11, 2) + time.substr(14, 2);
 }
@@ -194,16 +198,13 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
         return false;
     }
 
-    LogMsg("Feed for %s: %s", arpt_icao.c_str(), feed.c_str());
     cdm_info->feed = feed;
+    std::string data;
+    data.reserve(10 * 1024);
 
-    if (proto == kProtoVacdmV1) {
-        feed = feed + std::string("/api/v1/pilots/") + callsign;
-        cdm_info->feed = feed;
-
-        std::string data;
-        data.reserve(10 * 1024);
-        bool res = HttpGet(feed, data, 10);
+    auto GetData = [&]() ->bool {
+        LogMsg("Feed for %s: %s", arpt_icao.c_str(), cdm_info->feed.c_str());
+        bool res = HttpGet(cdm_info->feed, data, 10);
 
         if (!res) {
             LogMsg("Can't retrieve from '%s'", feed.c_str());
@@ -212,11 +213,28 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
 
         int len = data.length();
         LogMsg("got flight data %d bytes", len);
+        return true;
+    };
+
+    if (proto == kProtoVacdmV1) {
+        cdm_info->feed += std::string("/api/v1/pilots/") + callsign;;
+        if (!GetData())
+            return false;
+
+        json flight, vacdm;
+        try {
+            flight = json::parse(data);
+            // LogMsgRaw(flight.dump(4));
+            vacdm = flight.at("vacdm");
+        } catch (const json::out_of_range& e) {
+            LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+            return false;
+        } catch (const std::exception &e) {
+            LogMsg("Exception: '%s'", e.what());
+            return false;
+        }
 
         try {
-            json flight = json::parse(data);
-            //LogMsgRaw(flight.dump(4));
-            json vacdm = flight.at("vacdm");
             cdm_info->tobt = ExtractHHMM(vacdm.at("tobt"));
             cdm_info->tsat = ExtractHHMM(vacdm.at("tsat"));
             json clearance = flight.at("clearance");
@@ -224,23 +242,14 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
             cdm_info->sid = clearance.at("sid");
             cdm_info->status = "Success";
             return true;
-        } catch (std::exception& e) {
+        } catch (const std::exception& e) {
             LogMsg("Exception: '%s'", e.what());
+            // FALLTHROUGH
         }
     } else if (proto == kProtoNool) {
-        cdm_info->feed = feed;
-        // load flight data
-        std::string data;
-        data.reserve(10 * 1024);
-        bool res = HttpGet(feed, data, 10);
-
-        if (!res) {
-            LogMsg("Can't retrieve from '%s'", feed.c_str());
+        if (!GetData())
             return false;
-        }
 
-        int len = data.length();
-        LogMsg("got flight data %d bytes", len);
         try {
             json flights = json::parse(data).at("flights");
             // LogMsgRaw(flights.dump(4));
@@ -260,7 +269,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
                 }
             }
             LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
-        } catch (std::exception& e) {
+        } catch (const std::exception& e) {
             LogMsg("Exception: '%s'", e.what());
         }
     } else {
