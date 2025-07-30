@@ -19,6 +19,7 @@
 //    USA
 //
 
+#include <cassert>
 #include <string>
 #include <fstream>
 #include "nlohmann/json.hpp"
@@ -61,7 +62,7 @@ class Server {
     bool RetrieveAirports();
 };
 
-static std::vector<Server> servers;
+static std::vector<std::unique_ptr<Server>> servers;
 
 void
 CdmInfo::Dump() const
@@ -109,17 +110,25 @@ bool Server::RetrieveAirports() {
     try {
         json data_obj = json::parse(data);
 
-        if (proto_ == kProtoRRuig) {
-            const auto& airport_obj = data_obj.at("airports");
-            for (auto const& [icao, url_list] : airport_obj.items()) {
-                airports_[icao] = Airport{icao, url_list[0], proto_};
+        switch (proto_) {
+            case kProtoRRuig: {
+                const auto& airport_obj = data_obj.at("airports");
+                for (auto const& [icao, url_list] : airport_obj.items()) {
+                    airports_[icao] = Airport{icao, url_list[0], proto_};
+                }
+                break;
             }
-        } else if (proto_ == kProtoVacdmV1) {
-            for (auto const& a : data_obj) {
-                std::string icao = a.at("icao");
-                airports_[icao] = Airport{icao, url_, proto_};
-                LogMsg("  '%s'", icao.c_str());
+
+            case kProtoVacdmV1: {
+                for (auto const& a : data_obj) {
+                    std::string icao = a.at("icao");
+                    airports_[icao] = Airport{icao, url_, proto_};
+                    LogMsg("  '%s'", icao.c_str());
+                }
+                break;
             }
+            default:
+            assert(0);
         }
     } catch (const std::exception& e) {
         LogMsg("Invalid airport data: '%s'", e.what());
@@ -142,16 +151,16 @@ FindUrl(const std::string& icao)
         return std::make_pair(url_c, proto_c);
 
     for (auto& s : servers) {
-        if (!s.RetrieveAirports())
+        if (!s->RetrieveAirports())
             continue;
         try {
-            const auto& h = s.airports_.at(icao);
+            const auto& h = s->airports_.at(icao);
             icao_c = icao;
             url_c = h.url;
             proto_c = h.proto;
             return std::make_pair(url_c, proto_c);
         } catch (std::out_of_range& e) {
-            // FALLTHROUGH
+            // try next
         }
     }
 
@@ -184,7 +193,7 @@ CdmInit(const std::string& cfg_path)
                 LogMsg("Sorry, only 'rruig' or 'vacdm_v1' are currently supported");
                 return false;
             }
-            servers.push_back(Server(name, url, proto));
+            servers.push_back(std::make_unique<Server>(name, url, proto));
         }
     } catch (std::exception& e) {
         LogMsg("Exception: '%s'", e.what());
@@ -229,6 +238,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
         LogMsg("got flight data %d bytes", len);
         return true;
     };
+
     switch (proto) {
         case kProtoVacdmV1: {
             cdm_info->url += std::string("/api/v1/pilots/") + callsign;
