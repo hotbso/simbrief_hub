@@ -80,6 +80,31 @@ CdmInfo::Dump() const
 #undef L
 }
 
+// Get json from url or return null object
+json GetJson(const std::string& url) {
+    std::string data;
+    data.reserve(20 * 1024);
+    bool res = HttpGet(url, data, 10);
+
+    if (!res) {
+        LogMsg("Can't retrieve from '%s'", url.c_str());
+        return false;
+    }
+
+    int len = data.length();
+    LogMsg("got data %d bytes", len);
+
+    try {
+        json data_obj = json::parse(data);
+        // LogMsgRaw(data_obj.dump(4));
+        return data_obj;
+    } catch (const std::exception& e) {
+        LogMsg("Invalid json from '%s'", url.c_str());
+    }
+
+    return nullptr;
+}
+
 // Load served airports
 bool Server::RetrieveAirports() {
     if (retrieved_)
@@ -95,26 +120,19 @@ bool Server::RetrieveAirports() {
     else
         std::runtime_error("Oh no, how could that happen: invalid protocol");
 
-    std::string data;
-    data.reserve(20 * 1024);
-    bool res = HttpGet(api_url, data, 10);
-
-    if (!res) {
+    json data_obj = GetJson(api_url);
+    if (data_obj.is_null()) {
         LogMsg("Can't retrieve from '%s'", api_url.c_str());
         return false;
     }
 
-    int len = data.length();
-    LogMsg("got data %d bytes", len);
-
     try {
-        json data_obj = json::parse(data);
-
         switch (proto_) {
             case kProtoRRuig: {
                 const auto& airport_obj = data_obj.at("airports");
                 for (auto const& [icao, url_list] : airport_obj.items()) {
                     airports_[icao] = Airport{icao, url_list[0], proto_};
+                    LogMsg("  '%s'", icao.c_str());
                 }
                 break;
             }
@@ -127,8 +145,9 @@ bool Server::RetrieveAirports() {
                 }
                 break;
             }
+
             default:
-            assert(0);
+                assert(0);
         }
     } catch (const std::exception& e) {
         LogMsg("Invalid airport data: '%s'", e.what());
@@ -222,33 +241,16 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
     }
 
     cdm_info->url = url;
-    std::string data;
-    data.reserve(10 * 1024);
-
-    auto GetData = [&]() -> bool {
-        LogMsg("Url for %s: %s", arpt_icao.c_str(), cdm_info->url.c_str());
-        bool res = HttpGet(cdm_info->url, data, 10);
-
-        if (!res) {
-            LogMsg("Can't retrieve from '%s'", url.c_str());
-            return false;
-        }
-
-        int len = data.length();
-        LogMsg("got flight data %d bytes", len);
-        return true;
-    };
 
     switch (proto) {
         case kProtoVacdmV1: {
             cdm_info->url += std::string("/api/v1/pilots/") + callsign;
-            if (!GetData())
+            json flight = GetJson(cdm_info->url);
+            if (flight.is_null())
                 return false;
 
-            json flight, vacdm;
+            json vacdm;
             try {
-                flight = json::parse(data);
-                // LogMsgRaw(flight.dump(4));
                 vacdm = flight.at("vacdm");
             } catch (const json::out_of_range& e) {
                 LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
@@ -273,11 +275,12 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
         }
 
         case kProtoRRuig: {
-            if (!GetData())
+            json arpt_obj = GetJson(cdm_info->url);
+            if (arpt_obj.is_null())
                 return false;
 
             try {
-                json flights = json::parse(data).at("flights");
+                json flights = arpt_obj.at("flights");
                 // LogMsgRaw(flights.dump(4));
                 for (const auto& f : flights) {
                     if (f.at("callsign") == callsign) {
