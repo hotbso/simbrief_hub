@@ -5,19 +5,16 @@
             "protocol": "vacdm_v1",
             "url": "https://app.vacdm.net"
         },
-
-       {
+        {
             "name": "Spain",
             "protocol": "rruig",
             "url": "https://aman.vatsimspain.es"
         },
-
         {
             "name": "Scandinavia",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim-scandinavia.org"
         },
-
         {
             "name": "France",
             "protocol": "vacdm_v1",

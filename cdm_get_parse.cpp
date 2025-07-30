@@ -216,7 +216,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
     std::string data;
     data.reserve(10 * 1024);
 
-    auto GetData = [&]() ->bool {
+    auto GetData = [&]() -> bool {
         LogMsg("Url for %s: %s", arpt_icao.c_str(), cdm_info->url.c_str());
         bool res = HttpGet(cdm_info->url, data, 10);
 
@@ -229,64 +229,69 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
         LogMsg("got flight data %d bytes", len);
         return true;
     };
+    switch (proto) {
+        case kProtoVacdmV1: {
+            cdm_info->url += std::string("/api/v1/pilots/") + callsign;
+            if (!GetData())
+                return false;
 
-    if (proto == kProtoVacdmV1) {
-        cdm_info->url += std::string("/api/v1/pilots/") + callsign;;
-        if (!GetData())
-            return false;
-
-        json flight, vacdm;
-        try {
-            flight = json::parse(data);
-            // LogMsgRaw(flight.dump(4));
-            vacdm = flight.at("vacdm");
-        } catch (const json::out_of_range& e) {
-            LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
-            return false;
-        } catch (const std::exception &e) {
-            LogMsg("Exception: '%s'", e.what());
-            return false;
-        }
-
-        try {
-            cdm_info->tobt = ExtractHHMM(vacdm.at("tobt"));
-            cdm_info->tsat = ExtractHHMM(vacdm.at("tsat"));
-            json clearance = flight.at("clearance");
-            cdm_info->runway = clearance.at("dep_rwy");
-            cdm_info->sid = clearance.at("sid");
-            cdm_info->status = "Success";
-            return true;
-        } catch (const std::exception& e) {
-            LogMsg("Exception: '%s'", e.what());
-            // FALLTHROUGH
-        }
-    } else if (proto == kProtoRRuig) {
-        if (!GetData())
-            return false;
-
-        try {
-            json flights = json::parse(data).at("flights");
-            // LogMsgRaw(flights.dump(4));
-            for (const auto& f : flights) {
-                if (f.at("callsign") == callsign) {
-                    //LogMsgRaw(f.dump(4));
-#define EXTRACT(fn) cdm_info->fn = f.at(#fn)
-                    EXTRACT(tobt);
-                    EXTRACT(tsat);
-                    EXTRACT(runway);
-                    EXTRACT(sid);
-                    cdm_info->status = "Success";
-                    LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), url.c_str());
-                    return true;
-#undef EXTRACT
-                }
+            json flight, vacdm;
+            try {
+                flight = json::parse(data);
+                // LogMsgRaw(flight.dump(4));
+                vacdm = flight.at("vacdm");
+            } catch (const json::out_of_range& e) {
+                LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+                return false;
+            } catch (const std::exception& e) {
+                LogMsg("Exception: '%s'", e.what());
+                return false;
             }
-            LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
-        } catch (const std::exception& e) {
-            LogMsg("Exception: '%s'", e.what());
+
+            try {
+                cdm_info->tobt = ExtractHHMM(vacdm.at("tobt"));
+                cdm_info->tsat = ExtractHHMM(vacdm.at("tsat"));
+                json clearance = flight.at("clearance");
+                cdm_info->runway = clearance.at("dep_rwy");
+                cdm_info->sid = clearance.at("sid");
+                cdm_info->status = "Success";
+                return true;
+            } catch (const std::exception& e) {
+                LogMsg("Exception: '%s'", e.what());
+            }
+            break;
         }
-    } else {
-        LogMsg("Unsupported protocol");
+
+        case kProtoRRuig: {
+            if (!GetData())
+                return false;
+
+            try {
+                json flights = json::parse(data).at("flights");
+                // LogMsgRaw(flights.dump(4));
+                for (const auto& f : flights) {
+                    if (f.at("callsign") == callsign) {
+                        // LogMsgRaw(f.dump(4));
+#define EXTRACT(fn) cdm_info->fn = f.at(#fn)
+                        EXTRACT(tobt);
+                        EXTRACT(tsat);
+                        EXTRACT(runway);
+                        EXTRACT(sid);
+                        cdm_info->status = "Success";
+                        LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), url.c_str());
+                        return true;
+#undef EXTRACT
+                    }
+                }
+                LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+            } catch (const std::exception& e) {
+                LogMsg("Exception: '%s'", e.what());
+            }
+            break;
+        }
+
+        default:
+            LogMsg("Unsupported protocol");
     }
 
     cdm_info->status = "not found";
