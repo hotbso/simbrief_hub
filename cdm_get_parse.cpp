@@ -55,9 +55,8 @@ class Server {
    public:
     std::map<const std::string, Airport> airports_;
 
-    Server(std::string name, std::string url, CdmProtocol proto) : name_(name), url_(url), proto_(proto) {
-        retrieved_ = false;
-    }
+    Server(std::string name, std::string url, CdmProtocol proto) :
+        name_(name), url_(url), proto_(proto), retrieved_(false) {}
 
     bool RetrieveAirports();
 };
