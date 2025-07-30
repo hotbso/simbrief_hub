@@ -67,7 +67,7 @@ struct OfpInfo
 struct CdmInfo
 {
     int seqno{0};       // incremented after each successfull fetch
-    F(feed);
+    F(url);
     F(status);
     F(tobt);
     F(tsat);

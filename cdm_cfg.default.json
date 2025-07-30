@@ -1,22 +1,27 @@
 {
-    "hosts" : [
+    "servers": [
         {
-            "name": "EKCH",
+            "name": "Germany",
+            "protocol": "vacdm_v1",
+            "url": "https://app.vacdm.net"
+        },
+
+       {
+            "name": "Spain",
+            "protocol": "rruig",
+            "url": "https://aman.vatsimspain.es"
+        },
+
+        {
+            "name": "Scandinavia",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim-scandinavia.org"
-        }
-    ],
-
-    "realms": [
-        {
-            "name": "spain",
-            "protocol": "nool",
-            "url": "https://aman.vatsimspain.es/CDM_feeds.json"
         },
+
         {
-            "name": "vACDM",
-            "protocol": "nool",
-            "url": "https://app.vacdm.net/api/vdgs/nool"
+            "name": "France",
+            "protocol": "vacdm_v1",
+            "url": "https://cdm.vatsim.fr"
         }
     ]
 }

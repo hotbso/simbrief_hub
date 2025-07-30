@@ -708,7 +708,7 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
                              NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void *)offsetof(OfpInfo, seqno), NULL);
 
-    CDM_DATA_DREF(feed);
+    CDM_DATA_DREF(url);
     CDM_DATA_DREF(status);
     CDM_DATA_DREF(tobt);
     CDM_DATA_DREF(tsat);
