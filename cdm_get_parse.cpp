@@ -35,7 +35,7 @@ using json = nlohmann::json;
 
 enum CdmProtocol {
     kProtoInvalid,
-    kProtoRRuig,
+    kProtoRPuig,
     kProtoVacdmV1
 };
 
@@ -113,7 +113,7 @@ bool Server::RetrieveAirports() {
     LogMsg("Loading airports for '%s' url: '%s'", name_.c_str(), url_.c_str());
 
     std::string api_url;
-    if (proto_ == kProtoRRuig)
+    if (proto_ == kProtoRPuig)
         api_url = url_ + "/CDM_feeds.json";
     else if (proto_ == kProtoVacdmV1)
         api_url = url_ + "/api/v1/airports";
@@ -128,7 +128,7 @@ bool Server::RetrieveAirports() {
 
     try {
         switch (proto_) {
-            case kProtoRRuig: {
+            case kProtoRPuig: {
                 const auto& airport_obj = data_obj.at("airports");
                 for (auto const& [icao, url_list] : airport_obj.items()) {
                     airports_[icao] = Airport{icao, url_list[0], proto_};
@@ -186,16 +186,29 @@ FindUrl(const std::string& icao)
     return std::make_pair("", kProtoInvalid);
 }
 
-bool
-CdmInit(const std::string& cfg_path)
-{
+bool CdmInit(const std::string& cfg_path) {
     std::ifstream f(cfg_path);
     if (f.fail())
         return false;
 
+    f.seekg(0, std::ios::end);
+    size_t size = f.tellg();
+    std::string content;
+    content.resize(size);
+    f.seekg(0);
+    f.read(content.data(), size);
+    LogMsgRaw(content.c_str());
+    auto mm_pos = content.find("#&*!");
+    if (mm_pos == std::string::npos) {
+        LogMsg("Magic marker not fount in '%s'", cfg_path.c_str());
+        return false;
+    }
+
+    content.erase(0, mm_pos + 4);
+
     try {
-        json cfg = json::parse(f);
-        //std::cout << cfg.dump(4) << std::endl;
+        json cfg = json::parse(content);
+        // std::cout << cfg.dump(4) << std::endl;
 
         for (const auto& s : cfg.at("servers")) {
             const std::string name = s.at("name");
@@ -204,8 +217,8 @@ CdmInit(const std::string& cfg_path)
             LogMsg("realm: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
 
             CdmProtocol proto;
-            if (protocol == "rruig")
-                proto = kProtoRRuig;
+            if (protocol == "rpuig")
+                proto = kProtoRPuig;
             else if (protocol == "vacdm_v1")
                 proto = kProtoVacdmV1;
             else {
@@ -274,7 +287,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
             break;
         }
 
-        case kProtoRRuig: {
+        case kProtoRPuig: {
             json arpt_obj = GetJson(cdm_info->url);
             if (arpt_obj.is_null())
                 return false;
