@@ -1,5 +1,4 @@
 
-include version.mak
 include Makefile.common
 
 OBJDIR=./build/win
@@ -21,7 +20,6 @@ LD=g++
 
 COMMON_CFLAGS=$(OPT) -s -Wall -fdiagnostics-color -Wno-format-overflow -Wno-format-truncation\
     -DIBM -DWINDOWS -DWIN32 \
-    -DVERSION=\"$(VERSION)\" \
 	$(INCLUDES) $(DEFINES)
 
 CFLAGS=-mdll $(COMMON_CFLAGS)

@@ -31,9 +31,9 @@ else
     SDK=../SDK-4.0.1
 endif
 
-DEFS= 
+DEFS=
 
-CFLAGS+=$(OPT) -Wall -DVERSION=\"$(VERSION)\" -DAPL=1 $(INCLUDES) $(DEFINES) \
+CFLAGS+=$(OPT) -Wall -DAPL=1 $(INCLUDES) $(DEFINES) \
 	-fPIC -fno-stack-protector -fvisibility=hidden
 CXXFLAGS:=$(CXXSTD) $(CFLAGS)
 
