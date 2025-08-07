@@ -19,6 +19,11 @@
             "name": "France",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim.fr"
+        },
+        {
+            "name": "Austria",
+            "protocol": "vacdm_v1",
+            "url": "https://vacdm.vacc-austria.org"
         }
     ]
 }
