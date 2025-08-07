@@ -26,6 +26,7 @@
 using json = nlohmann::json;
 
 #include <vector>
+#include <unordered_map>
 #include "sbh.h"
 #include "http_get.h"
 
@@ -38,7 +39,7 @@ enum CdmProtocol {
     kProtoVacdmV1
 };
 
-// single airport EKCH served by a server
+// single airport
 struct Airport {
     std::string icao;
     std::string url;
@@ -53,7 +54,7 @@ class Server {
     bool retrieved_;
 
    public:
-    std::map<const std::string, Airport> airports_;
+    std::unordered_map<std::string, Airport> airports_;
 
     Server(std::string name, std::string url, CdmProtocol proto) :
         name_(name), url_(url), proto_(proto), retrieved_(false) {}
