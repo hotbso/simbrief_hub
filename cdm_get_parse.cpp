@@ -214,7 +214,7 @@ bool CdmInit(const std::string& cfg_path) {
             const std::string name = s.at("name");
             const std::string protocol = s.at("protocol");
             const std::string url = s.at("url");
-            LogMsg("realm: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
+            LogMsg("server: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
 
             CdmProtocol proto;
             if (protocol == "rpuig")
@@ -222,7 +222,7 @@ bool CdmInit(const std::string& cfg_path) {
             else if (protocol == "vacdm_v1")
                 proto = kProtoVacdmV1;
             else {
-                LogMsg("Sorry, only 'rruig' or 'vacdm_v1' are currently supported");
+                LogMsg("Sorry, only 'rpuig' or 'vacdm_v1' are currently supported");
                 return false;
             }
             servers.push_back(std::make_unique<Server>(name, url, proto));

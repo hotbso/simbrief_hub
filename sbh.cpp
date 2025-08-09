@@ -46,12 +46,14 @@
 
 const char *log_msg_prefix = "sbh: ";
 
+static constexpr float kCdmPollInterval = 90.0f;    // s
+
 static XPWidgetID main_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
 static WidgetCtx main_widget_ctx, conf_widget_ctx;
 
-static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, y_agl_dr;
+static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, eng_running_dr, gear_fnrml_dr;
 static XPLMDataRef xpilot_status_dr, xpilot_callsign_dr;
 
 static XPLMFlightLoopID flight_loop_id;
@@ -59,10 +61,11 @@ static XPLMFlightLoopID flight_loop_id;
 static int error_disabled;
 
 static std::string xp_dir, base_dir, pref_path;
-static std::string pilot_id, cdm_airport, cdm_callsign;
+static std::string pilot_id, cdm_airport, callsign;
 static int cdm_seqno;
+static bool fake_xpilot;    // faked by env var XPILOT_CALLSIGN=xxxx
 
-static float now;
+static float now, air_time, cdm_next_poll_ts;
 
 // A note on async processing:
 // Everything is synchronously fired by the flightloop so we don't need mutexes
@@ -137,6 +140,45 @@ ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
     return 0;
 }
 
+// connected to xpilot, engine off, no airtime
+bool CdmPollEnabled() {
+    static bool xpilot_connected;
+
+    if (xpilot_status_dr == nullptr)
+        return false;
+
+    if (ofp_download_active)
+        return false;
+
+    if (!fake_xpilot) {
+        int connected = XPLMGetDatai(xpilot_status_dr);
+        if (connected && !xpilot_connected) {
+            // catch the transition to connected and retrieve the callsign
+            char buffer[20];
+            int n = XPLMGetDatab(xpilot_callsign_dr, buffer, 0, sizeof(buffer) - 1);
+            buffer[n] = '\0';
+            callsign = buffer;
+            LogMsg("xpilot is connected: '%s'", callsign.c_str());
+        }
+
+        xpilot_connected = connected;
+        if (!xpilot_connected)
+            return false;
+    }
+
+    // check engines
+    int er[8];
+    int n = XPLMGetDatavi(eng_running_dr, er, 0, 8);
+    for (int i = 0; i < n; i++)
+        if (er[i])
+            return false;
+
+    if (air_time > 300.0f)  // arrival after a flight
+        return false;
+
+    return true;
+}
+
 //
 // Check for download and activate the new ofp
 // return true if download is still in progress
@@ -172,8 +214,9 @@ OfpCheckAsyncDownload()
         snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
         ofp_info->altitude = buffer;
         cdm_airport = ofp_info->origin;
-        cdm_callsign = ofp_info->icao_airline + ofp_info->flight_number;
-        FetchCdm();
+
+        cdm_next_poll_ts = now;          // schedule immediate polling after ofp download
+        air_time = 0.0f;
     }
 
     return ofp_download_active;
@@ -182,37 +225,37 @@ OfpCheckAsyncDownload()
 //
 // Check for download and activate the new cdm info
 // return true if download is still in progress
-bool
-CdmCheckAsyncDownload()
-{
+bool CdmCheckAsyncDownload() {
     if (cdm_download_active) {
         if (std::future_status::ready != cdm_download_future.wait_for(std::chrono::seconds::zero()))
             return true;
 
         cdm_download_active = false;
-        [[maybe_unused]] bool res = cdm_download_future.get();
-        cdm_info = std::move(cdm_info_new);
+        cdm_next_poll_ts = now + kCdmPollInterval;
 
-        LogMsg("CheckAsyncDownload(): Download status: %s", cdm_info->status.c_str());
-        if (cdm_info->status != "Success")
-            return false; // no download active
+        [[maybe_unused]] bool res = cdm_download_future.get();
+
+        LogMsg("CheckAsyncDownload(): Download status: %s", cdm_info_new->status.c_str());
+        if (cdm_info_new->status != "Success") {
+            cdm_info_new = nullptr;
+            return false;  // no download active
+        }
+#define F_EQ(f) (cdm_info->f == cdm_info_new->f)
+        if (cdm_info &&
+            F_EQ(status) && F_EQ(tobt) && F_EQ(tsat) && F_EQ(runway) && F_EQ(sid)) {
+            cdm_info_new = nullptr;  // unchanged, discard
+            return false;            // no download active
+        }
+#undef F_EQ
+
+        cdm_info = std::move(cdm_info_new);
         cdm_info->seqno = ++cdm_seqno;
     }
 
     return cdm_download_active;
 }
 
-static bool OfpAsyncGetParse() {
-    return OfpGetParse(pilot_id, ofp_info_new);
-}
-
-static bool CdmAsyncGetParse() {
-    return CdmGetParse(cdm_airport, cdm_callsign, cdm_info_new);
-}
-
-static void
-FetchOfp(void)
-{
+static void FetchOfp(void) {
     if (pilot_id.empty()) {
         LogMsg("pilot_id is not configured!");
         return;
@@ -223,7 +266,7 @@ FetchOfp(void)
         return;
     }
 
-    ofp_download_future = std::async(std::launch::async, OfpAsyncGetParse);
+    ofp_download_future = std::async(std::launch::async, []() { return OfpGetParse(pilot_id, ofp_info_new); });
     ofp_download_active = true;
 }
 
@@ -238,7 +281,8 @@ static void FetchCdm() {
         return;
     }
 
-    cdm_download_future = std::async(std::launch::async, CdmAsyncGetParse);
+    cdm_download_future =
+        std::async(std::launch::async, []() { return CdmGetParse(cdm_airport, callsign, cdm_info_new); });
     cdm_download_active = true;
 }
 
@@ -522,15 +566,24 @@ ToggleCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *
 }
 
 // flight loop for delayed actions
-static float
-FlightLoopCb([[maybe_unused]] float inElapsedSinceLastCall,
-             [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop, [[maybe_unused]] int inCounter,
-             [[maybe_unused]] void *inRefcon)
-{
-    //LogMsg("flight loop");
+static float FlightLoopCb(float inElapsedSinceLastCall,
+                          [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop, [[maybe_unused]] int inCounter,
+                          [[maybe_unused]] void *inRefcon) {
+    // LogMsg("flight loop");
     now = XPLMGetDataf(total_running_time_sec_dr);
     OfpCheckAsyncDownload();
     CdmCheckAsyncDownload();
+
+    if (XPLMGetDataf(gear_fnrml_dr) == 0.0f)
+        air_time += inElapsedSinceLastCall;
+
+    bool enab = CdmPollEnabled();
+    LogMsg("FlightLoopCB, now: %5.1f, cdm_next_poll_ts: %5.1f, air_time: %5.1f, enab: %d", now, cdm_next_poll_ts, air_time, enab);
+    if (now > cdm_next_poll_ts && enab) {
+        cdm_next_poll_ts = 1.0E20;
+        FetchCdm();
+    }
+
     return 1.0f;
 }
 
@@ -643,10 +696,9 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
 
     // map standard datarefs
     acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
-    y_agl_dr = XPLMFindDataRef("sim/flightmodel2/position/y_agl");
+    gear_fnrml_dr = XPLMFindDataRef("sim/flightmodel/forces/fnrml_gear");
     total_running_time_sec_dr = XPLMFindDataRef("sim/time/total_running_time_sec");
-    xpilot_status_dr = XPLMFindDataRef("xpilot/login/status");
-    xpilot_callsign_dr = XPLMFindDataRef("xpilot/login/callsign");
+    eng_running_dr = XPLMFindDataRef("sim/flightmodel/engine/ENGN_running");
 
     // build menu
     XPLMMenuID menu = XPLMFindPluginsMenu();
@@ -724,6 +776,13 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
         XPSetWidgetDescriptor(status_line, "Pilot ID is not configured!");
     }
 
+    const char *cs = getenv("XPILOT_CALLSIGN");
+    if (cs) {
+        fake_xpilot = true;
+        callsign = cs;
+        LogMsg("fake callsign set to '%s'", callsign.c_str());
+    }
+
     XPLMScheduleFlightLoop(flight_loop_id, 1.0f, 1);
     return 1;
 }
@@ -745,17 +804,22 @@ XPluginDisable(void)
 {
 }
 
-PLUGIN_API int
-XPluginEnable(void)
-{
+PLUGIN_API int XPluginEnable(void) {
     return 1;
 }
 
-PLUGIN_API void
-XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *in_param)
-{
+PLUGIN_API void XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, long in_msg, void *in_param) {
     if (in_msg == XPLM_MSG_PLANE_LOADED && in_param == 0) {
         LogMsg("plane loaded");
+
+        static bool init_done;
+        if (!init_done) {
+            init_done = true;
+            xpilot_status_dr = XPLMFindDataRef("xpilot/login/status");
+            xpilot_callsign_dr = XPLMFindDataRef("xpilot/login/callsign");
+            LogMsg("%s", xpilot_status_dr ? "xPilot is installed" : "xPilot is not installed, CDM disabled");
+        }
+
         FetchOfp();
     }
 }
