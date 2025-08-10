@@ -30,10 +30,10 @@ LIBS=-L$(SDK)/Libraries/Win -lXPLM_64 -lXPWidgets_64 -lwinhttp
 COMPILE.cpp = $(CXX) $(CXXFLAGS) $(DEPFLAGS) -c
 COMPILE.c = $(CC) $(CFLAGS) $(DEPFLAGS) -c
 
-$(OBJDIR)/%.o: %.c $(DEPDIR)/%.d version.mak | $(DEPDIR)
+$(OBJDIR)/%.o: %.c $(DEPDIR)/%.d | $(DEPDIR)
 	$(COMPILE.c) $(CFLAGS) -o $@ -c $<
 
-$(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d version.mak | $(DEPDIR)
+$(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d | $(DEPDIR)
 	$(COMPILE.cpp) $(CXXFLAGS) -o $@ -c $<
 
 install: $(TARGET)

@@ -43,6 +43,7 @@
 #include "XPStandardWidgets.h"
 
 #include "widget_ctx.h"
+#include "version.h"
 
 const char *log_msg_prefix = "sbh: ";
 
