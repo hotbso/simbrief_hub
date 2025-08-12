@@ -594,10 +594,8 @@ static float FlightLoopCb(float inElapsedSinceLastCall,
 }
 
 // Generic data accessor helper returning string data
-static int
-GenericDataAcc(const std::string *data, void *values, int ofs, int n)
-{
-   int len = data->length() + 1;   // we always offer a trailing 0
+static int GenericDataAcc(const std::string *data, void *values, int ofs, int n) {
+    int len = data->length() + 1;  // we always offer a trailing 0
     if (values == nullptr)
         return len;
 
@@ -607,59 +605,45 @@ GenericDataAcc(const std::string *data, void *values, int ofs, int n)
     n = std::min(n, len - ofs);
     memcpy(values, data->c_str() + ofs, n);
     return n;
- }
+}
 
 // data accessor
 // ref = offset of field (std::string) within OfpInfo
-static int
-OfpDataAcc(XPLMDataRef ref, void *values, int ofs, int n)
-{
-    if (ofp_info == nullptr)
+static int OfpDataAcc(XPLMDataRef ref, void *values, int ofs, int n) {
+    if (ofp_info == nullptr || ofp_info->seqno == 0)  // not even stale data
         return 0;
 
-    if (ofp_info->seqno == 0)    // not even stale data
-        return 0;
-
-    const std::string *data = static_cast<const std::string *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
+    const std::string *data = reinterpret_cast<const std::string *>((char *)ofp_info.get() + (size_t)ref);
     return GenericDataAcc(data, values, ofs, n);
- }
+}
 
 // int accessor
 // ref = offset of field (int) within OfpInfo
-static int
-OfpIntAcc(XPLMDataRef ref)
-{
+static int OfpIntAcc(XPLMDataRef ref) {
     if (ofp_info == nullptr)
         return 0;
 
-    int *data = static_cast<int *>((void *)((char *)ofp_info.get() + (uint64_t)ref));
+    int *data = reinterpret_cast<int *>((char *)ofp_info.get() + (size_t)ref);
     return *data;
 }
 
 // data accessor
 // ref = offset of field (std::string) within CdmInfo
-static int
-CdmDataAcc(XPLMDataRef ref, void *values, int ofs, int n)
-{
-    if (cdm_info == nullptr)
+static int CdmDataAcc(XPLMDataRef ref, void *values, int ofs, int n) {
+    if (cdm_info == nullptr || cdm_info->seqno == 0)  // not even stale data
         return 0;
 
-    if (cdm_info->seqno == 0)    // not even stale data
-        return 0;
-
-    const std::string *data = static_cast<const std::string *>((void *)((char *)cdm_info.get() + (uint64_t)ref));
+    const std::string *data = reinterpret_cast<const std::string *>((char *)cdm_info.get() + (size_t)ref);
     return GenericDataAcc(data, values, ofs, n);
- }
+}
 
 // int accessor
 // ref = offset of field (int) within OfpInfo
-static int
-CdmIntAcc(XPLMDataRef ref)
-{
+static int CdmIntAcc(XPLMDataRef ref) {
     if (cdm_info == nullptr)
         return 0;
 
-    int *data = static_cast<int *>((void *)((char *)cdm_info.get() + (uint64_t)ref));
+    int *data = reinterpret_cast<int *>((char *)cdm_info.get() + (size_t)ref);
     return *data;
 }
 
