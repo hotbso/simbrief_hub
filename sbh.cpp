@@ -328,9 +328,7 @@ FormatRoute(float *bg_color, std::string& route, int right_col, int y)
     return y;
 }
 
-static int
-MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2)
-{
+static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2) {
     if (msg == xpMessage_CloseButtonPushed) {
         main_widget_ctx.Hide();
         return 1;
@@ -352,8 +350,7 @@ MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
             return 1;
 
         static float label_color[] = { 0.0, 0.0, 0.0 };
-        static float xfer_color[] = { 0.0, 0.5, 0.0 };
-        static float bg_color[] = { 0.0, 0.3, 0.3 };
+        static float f_color[] = { 0.0, 0.5, 0.3 };
         char str[80];
         int left, top, right, bottom;
 
@@ -366,22 +363,17 @@ MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
 
 #define DL(COL, TXT) \
     if (COL == 0) y -= 15; \
-    XPLMDrawString(label_color, left_col[COL], y, (char *)TXT, NULL, xplmFont_Proportional)
-
-#define DX(COL, FIELD) \
-    XPLMDrawString(xfer_color, right_col[COL], y, ofp_info->FIELD.c_str(), NULL, xplmFont_Basic)
+    XPLMDrawString(label_color, left_col[COL], y, TXT, NULL, xplmFont_Proportional)
 
 #define DF(COL, FIELD) \
-    XPLMDrawString(bg_color, right_col[COL], y, ofp_info->FIELD.c_str(), NULL, xplmFont_Basic)
+    XPLMDrawString(f_color, right_col[COL], y, ofp_info->FIELD.c_str(), NULL, xplmFont_Basic)
 
 #define DS(COL, STR) \
-    XPLMDrawString(bg_color, right_col[COL], y, STR, NULL, xplmFont_Basic)
+    XPLMDrawString(f_color, right_col[COL], y, STR, NULL, xplmFont_Basic)
 
-        // D(right_col, oew);
-        DL(0, "Pax:"); DX(0, pax_count);
-        DL(0, "Cargo:"); DX(0, freight);
-        DL(0, "Fuel:"); DX(0, fuel_plan_ramp);
-        // D(right_col, payload);
+        DL(0, "Pax:"); DF(0, pax_count);
+        DL(0, "Cargo:"); DF(0, freight);
+        DL(0, "Fuel:"); DF(0, fuel_plan_ramp);
         y -= 10;
 
         time_t out_time = atol(ofp_info->est_out.c_str());
@@ -402,7 +394,7 @@ MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
         DL(0, "Destination:"); DS(0, (ofp_info->destination + "/" + ofp_info->destination_rwy).c_str());
         DL(0, "Route:");
 
-        y = FormatRoute(bg_color, ofp_info->route, right_col[0], y);
+        y = FormatRoute(f_color, ofp_info->route, right_col[0], y);
 
         DL(0, "Trip time");
         if (ofp_info->est_time_enroute[0]) {
@@ -435,7 +427,25 @@ MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_
 
         DL(0, "Alternate:"); DF(0, alternate);
         DL(0, "Alt Route:");
-        y = FormatRoute(bg_color, ofp_info->alt_route, right_col[0], y);
+        y = FormatRoute(f_color, ofp_info->alt_route, right_col[0], y);
+
+#undef DF
+#define DF(COL, FIELD) \
+    XPLMDrawString(f_color, right_col[COL], y, cdm_info->FIELD.c_str(), NULL, xplmFont_Basic)
+
+        if (cdm_info != nullptr) {
+            y -= 10;
+            DL(0, "CDM Status:"); DF(0, status);
+            DL(0, "Url:"); DF(0, url);
+            if (cdm_info->status == "Success") {
+                y -= 2;
+                DL(0, "TOBT:"); DF(0, tobt);
+                DL(1, "TSAT:"); DF(1, tsat);
+                DL(0, "Runway:"); DF(0, runway);
+                DL(1, "SID:"); DF(1, sid);
+            }
+        }
+
         y -= 15;
 
         int pleft, ptop, pright, pbottom;
