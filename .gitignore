@@ -2,6 +2,9 @@
 build/
 *.d
 
+# Generated header
+version.h
+
 # Compiled Object files
 *.slo
 *.lo

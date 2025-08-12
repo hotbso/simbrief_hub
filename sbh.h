@@ -63,7 +63,20 @@ struct OfpInfo
     F(max_tow);
     void Dump() const;
 };
+
+struct CdmInfo
+{
+    int seqno{0};       // incremented after each successfull fetch
+    F(url);
+    F(status);
+    F(tobt);
+    F(tsat);
+    F(runway);
+    F(sid);
+    void Dump() const;
+};
 #undef F
 
 extern bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info);
-
+extern bool CdmInit(const std::string& cfg_path);
+extern bool CdmGetParse(const std::string& icao, const std::string& callsign, std::unique_ptr<CdmInfo>& Cdm_info);
