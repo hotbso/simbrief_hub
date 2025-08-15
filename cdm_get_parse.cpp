@@ -275,6 +275,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
     auto [url, proto] = FindUrl(arpt_icao);
     if (url.empty()) {
         LogMsg("Feed for %s not found", arpt_icao.c_str());
+        cdm_info->status = "Feed for airport not found";
         return false;
     }
 
@@ -304,7 +305,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
                 json clearance = flight.at("clearance");
                 cdm_info->runway = clearance.at("dep_rwy").get<std::string>();
                 cdm_info->sid = clearance.at("sid").get<std::string>();
-                cdm_info->status = "Success";
+                cdm_info->status = kSuccess;
                 return true;
             } catch (const std::exception& e) {
                 LogMsg("Exception: '%s'", e.what());
@@ -328,7 +329,7 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
                         EXTRACT(tsat);
                         EXTRACT(runway);
                         EXTRACT(sid);
-                        cdm_info->status = "Success";
+                        cdm_info->status = kSuccess;
                         LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), url.c_str());
                         return true;
 #undef EXTRACT
@@ -345,6 +346,6 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
             LogMsg("Unsupported protocol");
     }
 
-    cdm_info->status = "not found";
+    cdm_info->status = "Flight not found";
     return false;
 }

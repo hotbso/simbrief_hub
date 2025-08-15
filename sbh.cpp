@@ -199,7 +199,7 @@ OfpCheckAsyncDownload()
         [[maybe_unused]] bool res = ofp_download_future.get();
         ofp_info = std::move(ofp_info_new);
 
-        LogMsg("CheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
+        LogMsg("OfpCheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
         if (ofp_info->status != "Success") {
             XPSetWidgetDescriptor(status_line, ofp_info->status.c_str());
             return false; // no download active
@@ -241,11 +241,7 @@ bool CdmCheckAsyncDownload() {
 
         [[maybe_unused]] bool res = cdm_download_future.get();
 
-        LogMsg("CheckAsyncDownload(): Download status: %s", cdm_info_new->status.c_str());
-        if (cdm_info_new->status != "Success") {
-            cdm_info_new = nullptr;
-            return false;  // no download active
-        }
+        LogMsg("CdmCheckAsyncDownload(): Download status: %s", cdm_info_new->status.c_str());
 #define F_EQ(f) (cdm_info->f == cdm_info_new->f)
         if (cdm_info &&
             F_EQ(status) && F_EQ(tobt) && F_EQ(tsat) && F_EQ(runway) && F_EQ(sid)) {
@@ -437,7 +433,7 @@ static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t para
             y -= 10;
             DL(0, "CDM Status:"); DF(0, status);
             DL(0, "Url:"); DF(0, url);
-            if (cdm_info->status == "Success") {
+            if (cdm_info->status == kSuccess) {
                 y -= 2;
                 DL(0, "TOBT:"); DF(0, tobt);
                 DL(1, "TSAT:"); DF(1, tsat);

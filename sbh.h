@@ -24,6 +24,8 @@
 
 #include "log_msg.h"
 
+static constexpr const char* kSuccess ="Success";
+
 #define F(f) std::string f
 struct OfpInfo
 {
