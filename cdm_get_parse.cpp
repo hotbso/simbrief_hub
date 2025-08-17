@@ -285,41 +285,39 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
         case kProtoVacdmV1: {
             cdm_info->url += std::string("/api/v1/pilots/") + callsign;
             json flight = GetJson(cdm_info->url);
-            if (flight.is_null())
-                return false;
-
-            json vacdm;
-            try {
-                vacdm = flight.at("vacdm");
-            } catch (const json::out_of_range& e) {
-                LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
-                return false;
-            } catch (const std::exception& e) {
-                LogMsg("Exception: '%s'", e.what());
+            if (flight.is_null()) {
+                cdm_info->status = "Failed to retrieve CDM data";
                 return false;
             }
 
             try {
+                const auto& vacdm = flight.at("vacdm").get<json>();
                 cdm_info->tobt = ExtractHHMM(vacdm.at("tobt").get<std::string>());
                 cdm_info->tsat = ExtractHHMM(vacdm.at("tsat").get<std::string>());
-                json clearance = flight.at("clearance");
+                const auto& clearance = flight.at("clearance").get<json>();
                 cdm_info->runway = clearance.at("dep_rwy").get<std::string>();
                 cdm_info->sid = clearance.at("sid").get<std::string>();
                 cdm_info->status = kSuccess;
                 return true;
+            } catch (const json::out_of_range& e) {
+                LogMsg("JSON key not found: '%s'", e.what());
+                cdm_info->status = "Flight not found";
             } catch (const std::exception& e) {
                 LogMsg("Exception: '%s'", e.what());
+                cdm_info->status = e.what();
             }
             break;
         }
 
         case kProtoRPuig: {
             json arpt_obj = GetJson(cdm_info->url);
-            if (arpt_obj.is_null())
+            if (arpt_obj.is_null()) {
+                cdm_info->status = "Failed to retrieve CDM data";
                 return false;
+            }
 
             try {
-                json flights = arpt_obj.at("flights");
+                const auto& flights = arpt_obj.at("flights").get<json>();
                 // LogMsgRaw(flights.dump(4));
                 for (const auto& f : flights) {
                     if (f.at("callsign").get<std::string>() == callsign) {
