@@ -112,7 +112,7 @@ json GetJson(const std::string& url) {
         // LogMsgRaw(data_obj.dump(4));
         return data_obj;
     } catch (const std::exception& e) {
-        LogMsg("Invalid json from '%s'", url.c_str());
+        LogMsg("Invalid json from '%s': %s", url.c_str(), e.what());
     }
 
     return json();
@@ -230,15 +230,14 @@ bool CdmInit(const std::string& cfg_path) {
     try {
         json cfg = json::parse(content);
 
-        for (const auto& s : cfg.at("servers")) {
-            const auto name = s.at("name").get<std::string>();
-            bool enabled = s.at("enabled").get<bool>();
-            if (!enabled) {
+        for (const auto& s : cfg.at("servers").get<json::array_t>()) {
+            const auto& name = s.at("name").get<std::string>();
+            if (!s.at("enabled").get<bool>()) {
                 LogMsg("Server '%s' is disabled, skipping", name.c_str());
                 continue;
             }
-            const auto protocol = s.at("protocol").get<std::string>();
-            const auto url = s.at("url").get<std::string>();
+            const auto& protocol = s.at("protocol").get<std::string>();
+            const auto& url = s.at("url").get<std::string>();
             LogMsg("server: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
 
             CdmProtocol proto;
