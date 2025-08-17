@@ -49,6 +49,8 @@ const char *log_msg_prefix = "sbh: ";
 
 static constexpr float kCdmPollInterval = 90.0f;  // s
 static constexpr float kCdmNoPoll = 100000.0f;    // never poll
+static constexpr float kAirtimeForArrival = 300.0f;  // s, airtime > this means arrival after a flight
+
 static XPWidgetID main_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
@@ -179,7 +181,7 @@ bool CdmPollEnabled() {
         if (er[i])
             return false;
 
-    if (air_time > 300.0f)  // arrival after a flight
+    if (air_time > kAirtimeForArrival)  // arrival after a flight
         return false;
 
     return true;
@@ -581,7 +583,6 @@ ToggleCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void *
 static float FlightLoopCb(float inElapsedSinceLastCall,
                           [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop, [[maybe_unused]] int inCounter,
                           [[maybe_unused]] void *inRefcon) {
-    // LogMsg("flight loop");
     now = XPLMGetDataf(total_running_time_sec_dr);
     OfpCheckAsyncDownload();
     CdmCheckAsyncDownload();
@@ -590,7 +591,9 @@ static float FlightLoopCb(float inElapsedSinceLastCall,
         air_time += inElapsedSinceLastCall;
 
     bool enab = CdmPollEnabled();
-    LogMsg("FlightLoopCB, now: %5.1f, cdm_next_poll_ts: %5.1f, air_time: %5.1f, enab: %d", now, cdm_next_poll_ts, air_time, enab);
+    if (enab)   // limit logging for now
+        LogMsg("FlightLoopCB, now: %5.1f, cdm_next_poll_ts: %5.1f, air_time: %5.1f, enab: %d", now, cdm_next_poll_ts, air_time, enab);
+
     if (now > cdm_next_poll_ts && enab) {
         cdm_next_poll_ts = kCdmNoPoll;
         FetchCdm();
