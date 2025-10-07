@@ -34,6 +34,12 @@ Therefore Germany should come last.
             "enabled": true
         },
         {
+            "name": "Poland",
+            "protocol": "rpuig",
+            "url": "https://plvacc.pl/cdm/acdm_plugin",
+            "enabled": true
+        },
+        {
             "name": "China",
             "protocol": "vacdm_v1",
             "url": "https://vacdm.vatprc.net",
