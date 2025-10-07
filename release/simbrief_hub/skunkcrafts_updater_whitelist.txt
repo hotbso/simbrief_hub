@@ -1,0 +1,6 @@
+nlohmann-LICENSE.MIT|2373155732
+mac_x64/simbrief_hub.xpl|237402350
+README.html|2771761125
+win_x64/simbrief_hub.xpl|2088079492
+cdm_cfg.default.json|353592020
+lin_x64/simbrief_hub.xpl|3003099484
