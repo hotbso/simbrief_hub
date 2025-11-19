@@ -213,7 +213,7 @@ OfpCheckAsyncDownload()
         char line[200];
         snprintf(line, sizeof(line),
                  "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-                 ofp_info->icao_airline.c_str(), ofp_info->flight_number.c_str(), ofp_info->aircraft_icao.c_str(),
+                 ofp_info->iata_airline.c_str(), ofp_info->flight_number.c_str(), ofp_info->aircraft_icao.c_str(),
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
 
@@ -721,6 +721,7 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     // XPLMStart must succeed beyond this point
     OFP_DATA_DREF(units);
     OFP_DATA_DREF(status);
+    OFP_DATA_DREF(iata_airline);
     OFP_DATA_DREF(icao_airline);
     OFP_DATA_DREF(flight_number);
     OFP_DATA_DREF(aircraft_icao);
