@@ -35,6 +35,7 @@ OfpInfo::Dump() const
     if (status == "Success") {
 #define L(field) LogMsg(#field ": %s", field.c_str())
         L(units);
+        L(iata_airline);
         L(icao_airline);
         L(flight_number);
         L(aircraft_icao);
@@ -164,7 +165,7 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
      }
 
     if (POSITION("general")) {
-        EXTRACT("icao_airline", icao_airline);
+        EXTRACT("icao_airline", iata_airline);
         EXTRACT("flight_number", flight_number);
         EXTRACT("costindex", ci);
         EXTRACT("initial_altitude", altitude);
@@ -195,6 +196,13 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
         EXTRACT("est_on", est_on);
         EXTRACT("est_in", est_in);
     }
+
+    if (POSITION("atc")) {
+        EXTRACT("callsign" icao_airline)
+    }
+
+    std::string callsign = ofp_info->icao_airline;
+    ofp_info->icao_airline = callsign.substr(0, 3);
 
     ofp_info->stale = false;
     ofp_info->seqno = ++seqno;
