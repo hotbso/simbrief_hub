@@ -198,7 +198,7 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
     }
 
     if (POSITION("atc")) {
-        EXTRACT("callsign" icao_airline)
+        EXTRACT("callsign", icao_airline)
     }
 
     std::string callsign = ofp_info->icao_airline;
