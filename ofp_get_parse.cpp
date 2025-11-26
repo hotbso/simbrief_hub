@@ -35,8 +35,8 @@ OfpInfo::Dump() const
     if (status == "Success") {
 #define L(field) LogMsg(#field ": %s", field.c_str())
         L(units);
-        L(iata_airline);
         L(icao_airline);
+        L(atc_callsign);
         L(flight_number);
         L(aircraft_icao);
         L(origin);
