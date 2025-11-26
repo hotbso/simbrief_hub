@@ -89,31 +89,3 @@ jobs:
           name: build-windows
           path: |
             build/*.xpl
-
-  release:
-    runs-on: ubuntu-latest
-    needs: [build-linux-macos, build-windows]
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: setup crc32 tool
-        shell: bash
-        run: |
-            sudo apt-get update
-            sudo apt-get install -y libarchive-zip-perl
-            TAG=${GITHUB_REF##*/}
-            if [ -n "$TAG" ]; then
-              echo "VERSION=$TAG" > version.mak
-            fi
-
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./download
-
-      - name: List artifacts
-        shell: bash
-        run: |
-            pwd
-            ls -lR ./download

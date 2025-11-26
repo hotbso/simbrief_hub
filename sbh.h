@@ -33,8 +33,8 @@ struct OfpInfo
     int seqno{0};       // incremented after each successfull fetch
     F(units);
     F(status);
-    F(iata_airline);
     F(icao_airline);
+    F(atc_callsign);
     F(flight_number);
     F(aircraft_icao);
     F(max_passengers);
