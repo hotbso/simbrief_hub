@@ -34,6 +34,7 @@ struct OfpInfo
     F(units);
     F(status);
     F(icao_airline);
+    F(atc_callsign);
     F(flight_number);
     F(aircraft_icao);
     F(max_passengers);

@@ -722,6 +722,7 @@ XPluginStart(char *out_name, char *out_sig, char *out_desc)
     OFP_DATA_DREF(units);
     OFP_DATA_DREF(status);
     OFP_DATA_DREF(icao_airline);
+    OFP_DATA_DREF(atc_callsign);
     OFP_DATA_DREF(flight_number);
     OFP_DATA_DREF(aircraft_icao);
     OFP_DATA_DREF(max_passengers);
