@@ -10,7 +10,7 @@
     <request_id>136713646</request_id>
     <sequence_id>7bc9a0e07084</sequence_id>
     <static_id/>
-    <user_id>142430</user_id>
+    <user_id>xxxx</user_id>
     <time_generated>1749203242</time_generated>
     <xml_file>https://www.simbrief.com/ofp/flightplans/xml/EKBIENBR_XML_1749203242.xml</xml_file>
     <ofp_layout>LIDO</ofp_layout>
@@ -3380,7 +3380,7 @@ E) APRON 10 CLSD</notam_text>
     <notam_text>A2192/25 NOTAMN
 Q) ENOR/QOBCE/IV/M  /A /000/999/5853N00538E005
 A) ENZV B) 2504200200 C) 2507150800 EST
-E) CRANE ERECTED ON VESSEL AT MEKJARVIK PSN 5901N 00537E, HGT 660FT 
+E) CRANE ERECTED ON VESSEL AT MEKJARVIK PSN 5901N 00537E, HGT 660FT
 AMSL. TOP OF CRANE MARKED WITH TWO RED FLASHING OBSTRUCTION LIGHTS</notam_text>
     <notam_report>CRANE ERECTED ON VESSEL AT MEKJARVIK PSN 5901N 00537E, HGT 660FT AMSL. TOP OF CRANE MARKED WITH TWO RED FLASHING OBSTRUCTION LIGHTS. 20 APR 02:00 2025 UNTIL 15 JUL 08:00 2025 ESTIMATED. CREATED: 19 APR 11:59 2025</notam_report>
     <notam_nrc>NOTAMN</notam_nrc>
@@ -3499,7 +3499,7 @@ END TAKEOFF AND LANDING REPORT SAS 74A EKBI-ENBR 06JUN25</tlr_section>
 SAS074A   06JUN2025    EKBI-ENBR   A319 OYKBT   RELEASE 0947 06JUN25
 OFP 1               BILLUND-FLESLAND
                          WX PROG 0609 0612 0615   OBS 0600 0600 0600
-	
+
   ATC C/S   SAS74A       EKBI/BLL   ENBR/BGO      CRZ SYS      CI 30
 06JUN2025   OYKBT        1020/1040  1135/1143     GND DIST       362
 A319-132 / V2524-A5                 STA  1155     AIR DIST       345
@@ -3543,8 +3543,8 @@ TRIP+TAXI             2571
 NO TANKERING RECOMMENDED (P)
 --------------------------------------------------------------------
 I HEREWITH CONFIRM THAT I HAVE PERFORMED A THOROUGH SELF BRIEFING
-ABOUT THE DESTINATION AND ALTERNATE AIRPORTS OF THIS FLIGHT 
-INCLUDING THE APPLICABLE INSTRUMENT APPROACH PROCEDURES, AIRPORT 
+ABOUT THE DESTINATION AND ALTERNATE AIRPORTS OF THIS FLIGHT
+INCLUDING THE APPLICABLE INSTRUMENT APPROACH PROCEDURES, AIRPORT
 FACILITIES, NOTAMS AND ALL OTHER RELEVANT PARTICULAR INFORMATION.
 
 DISPATCHER: LORETTA CHEN                PIC NAME: TEUTSCH, HOLGER
@@ -3592,7 +3592,7 @@ RVSM: ALT SYS  LEFT:             STBY:             RIGHT:
 --------------------------------------------------------------------
                                 TIMES
                                 -----
-				    
+
                ESTIMATED        SKED              ACTUAL
 
 OUT            1020Z/1220L      1020Z/1220L       ......Z
@@ -3633,8 +3633,8 @@ LAW            58.6     62.5     ......
 DD CHECK - TERRAIN CLEARANCE CHECK DISABLED
 
 DP CHECK - TERRAIN CLEARANCE CHECK DISABLED
---------------------------------------------------------------------&lt;h2 style="page-break-after: always;"&gt; &lt;/h2&gt;&lt;!--BKMK///Flight Log///1--&gt;                             FLIGHT LOG                             
-                             ----------                             
+--------------------------------------------------------------------&lt;h2 style="page-break-after: always;"&gt; &lt;/h2&gt;&lt;!--BKMK///Flight Log///1--&gt;                             FLIGHT LOG
+                             ----------
 
 MOST CRITICAL MORA 06000 FEET AT TOD///MXSHR 02 AT BADAB
 --------------------------------------------------------------------
@@ -3644,7 +3644,7 @@ IDENT       LONG    TTLT ATO DIS  RDIS   GS     SHR  TRP  AFOB  ABRN
 FREQ
 --------------------------------------------------------------------
                                    341                     5.6   0.2
-BILLUND     N5544.4      ...  24   343         P008     
+BILLUND     N5544.4      ...  24   343         P008
 EKBI       E00909.1 0000 ...       362  379               ....  ....
 
 RERPA2A                      137   315  .58 232/024  M11   5.1   0.7
@@ -3659,7 +3659,7 @@ P614                         335   335  .78 221/042  M49   4.3   1.5
 RAMUD       N5703.4 0005 ...  20   338         P013  P03
 RAMUD      E00736.4 0017 ...  40   257  468          316  ....  ....
 
-POLARIS FIR                                                         
+POLARIS FIR
 -ENOR       N5703.3 0000 ...
            E00736.5 0017 ...   0   257
 
@@ -3725,14 +3725,14 @@ GILVA       N6030.5 0002 ...  43   188         M008  M06
 GILVA      E00516.8 0050 ...  10    15  259          309  ....  ....
 
 BADAB2N                                                    3.2   2.6
-FLESLAND    N6017.6 0005 ...                            
+FLESLAND    N6017.6 0005 ...
 ENBR       E00513.1 0055 ...  15                          ....  ....
 
 
 
 &lt;h2 style="page-break-after: always;"&gt; &lt;/h2&gt;&lt;!--BKMK///Wind Information///1--&gt;--------------------------------------------------------------------
-                          WIND INFORMATION                          
-                          ----------------                          
+                          WIND INFORMATION
+                          ----------------
 
 CLIMB            T O C            BADAB            OKTOS
 350 223/042 -49  380 225/043 -45  380 219/036 -45  380 219/036 -45
@@ -3750,8 +3750,8 @@ DIBMA            T O D            DESCENT
 
 --------------------------------------------------------------------&lt;h2 style="page-break-after: always;"&gt; &lt;/h2&gt;&lt;!--BKMK///ATC Flight Plan///0--&gt;&lt;b&gt;[ ATC Flight Plan ]
 --------------------------------------------------------------------&lt;/b&gt;
-                          ICAO FLIGHT PLAN                           
-                          ----------------                           
+                          ICAO FLIGHT PLAN
+                          ----------------
 
 FF EKDKZQZX ENORZQZX
 060947 CYULSBFP
@@ -3951,7 +3951,7 @@ DESTINATION ALTERNATE AIRPORT(S)
 &lt;b&gt;A2780/25   &lt;/b&gt;
   APRON 10 &lt;b&gt;CLSD&lt;/b&gt;
 &lt;b&gt;A2192/25   &lt;/b&gt;
-  CRANE ERECTED ON VESSEL AT MEKJARVIK PSN 5901N 00537E, HGT 660FT 
+  CRANE ERECTED ON VESSEL AT MEKJARVIK PSN 5901N 00537E, HGT 660FT
   AMSL. TOP OF CRANE MARKED WITH TWO RED FLASHING OBSTRUCTION LIGHTS
 &lt;h2 style="page-break-after: always;"&gt; &lt;/h2&gt;&lt;!--BKMK///Company NOTAM///0--&gt;&lt;b&gt;[ Company NOTAM ]
 --------------------------------------------------------------------&lt;/b&gt;
