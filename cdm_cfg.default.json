@@ -6,6 +6,10 @@ their own server or run elsewhere. E.g. EGxx that runs on Spain.
 
 Therefore Germany should come last.
 
+Note that Spain serves a lot of airports.
+See https://aman.vatsimspain.es/CDM_feeds.json
+
+
 !*&# -------- valid json enforced below this line -------- #&*!
 {
     "servers": [
@@ -25,18 +29,6 @@ Therefore Germany should come last.
             "name": "France",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim.fr",
-            "enabled": true
-        },
-        {
-            "name": "Austria",
-            "protocol": "vacdm_v1",
-            "url": "https://vacdm.vacc-austria.org",
-            "enabled": true
-        },
-        {
-            "name": "Poland",
-            "protocol": "rpuig",
-            "url": "https://plvacc.pl/cdm/acdm_plugin",
             "enabled": true
         },
         {
