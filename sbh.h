@@ -40,6 +40,7 @@ struct OfpInfo
     F(fuel_plan_ramp);
     F(origin);
     F(origin_rwy);
+    F(sid);
     F(destination);
     F(alternate);
     F(destination_rwy);
@@ -63,6 +64,7 @@ struct OfpInfo
     F(fuel_taxi);
     F(max_zfw);
     F(max_tow);
+    F(dx_rmk);
     void Dump() const;
 };
 
