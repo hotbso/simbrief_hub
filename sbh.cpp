@@ -423,6 +423,9 @@ static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t para
         DF(0, alternate);
         DL(0, "Alt Route:");
         y = FormatRoute(f_color, ofp_info->alt_route, right_col[0], y);
+        y -= 5;
+        DL(0, "DX Remarks:");
+        DF(0, dx_rmk);
 
 #undef DF
 #define DF(COL, FIELD) XPLMDrawString(f_color, right_col[COL], y, cdm_info->FIELD.c_str(), NULL, xplmFont_Basic)
@@ -740,6 +743,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     OFP_DATA_DREF(fuel_taxi);
     OFP_DATA_DREF(max_zfw);
     OFP_DATA_DREF(max_tow);
+    OFP_DATA_DREF(dx_rmk);
 
     XPLMRegisterDataAccessor("sbh/stale", xplmType_Int, 0, OfpIntAcc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, (void*)offsetof(OfpInfo, stale), NULL);
