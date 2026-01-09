@@ -51,15 +51,19 @@ static constexpr float kCdmPollInterval = 90.0f;  // s
 static constexpr float kCdmNoPoll = 100000.0f;    // never poll
 static constexpr float kAirtimeForArrival = 300.0f;  // s, airtime > this means arrival after a flight
 
+static XPLMMenuID sbh_menu;
 static XPWidgetID main_widget, display_widget, getofp_btn, status_line;
 static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
 
 static WidgetCtx main_widget_ctx, conf_widget_ctx;
+static int fake_cdm_item;
 
 static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, num_engines_dr, eng_running_dr, gear_fnrml_dr;
 static XPLMDataRef xpilot_status_dr, xpilot_callsign_dr;
 
 static XPLMFlightLoopID flight_loop_id;
+
+static int pref_fake_cdm;
 
 static int error_disabled;
 
@@ -67,6 +71,8 @@ static std::string xp_dir, base_dir, pref_path;
 static std::string pilot_id, cdm_airport, callsign;
 static int cdm_seqno;
 static bool fake_xpilot;    // faked by env var XPILOT_CALLSIGN=xxxx
+static bool xpilot_connected;
+
 
 static float now, air_time, cdm_next_poll_ts;
 
@@ -100,7 +106,7 @@ static void SavePrefs() {
         return;
     }
 
-    f << pilot_id << "\n";
+    f << pilot_id << " " << pref_fake_cdm << "\n";
 }
 
 static void LoadPrefs() {
@@ -110,9 +116,7 @@ static void LoadPrefs() {
         return;
     }
 
-    std::getline(f, pilot_id);
-    if (!pilot_id.empty() && pilot_id.back() == '\r')
-        pilot_id.pop_back();
+    f >> pilot_id >> pref_fake_cdm;
 }
 
 static int ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2) {
@@ -138,8 +142,6 @@ static int ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t para
 
 // connected to xpilot, engine off, no airtime
 bool CdmPollEnabled() {
-    static bool xpilot_connected;
-
     if (xpilot_status_dr == nullptr)
         return false;
 
@@ -180,6 +182,32 @@ bool CdmPollEnabled() {
     return true;
 }
 
+// fake cdm info from ofp info
+static void FakeCdm() {
+    if (ofp_info == nullptr)
+        return;
+
+    LogMsg("Faking CDM airport '%s'", ofp_info->origin.c_str());
+    time_t out_time = atol(ofp_info->est_out.c_str());
+    time_t off_time = atol(ofp_info->est_off.c_str());
+
+    auto out_tm = *std::gmtime(&out_time);
+    auto off_tm = *std::gmtime(&off_time);
+    char out[20], off[20];
+    strftime(out, sizeof(out), "%H%M", &out_tm);
+    strftime(off, sizeof(off), "%H%M", &off_tm);
+
+    cdm_info = std::make_unique<CdmInfo>();
+    cdm_info->status = kSuccess;
+    cdm_info->url = "faked from OFP";
+    cdm_info->tobt = out;
+    cdm_info->tsat = out;
+    cdm_info->ctot = off;
+    cdm_info->runway = ofp_info->origin_rwy;
+    cdm_info->sid = ofp_info->sid;
+    cdm_info->seqno = ++cdm_seqno;
+}
+
 //
 // Check for download and activate the new ofp
 // return true if download is still in progress
@@ -193,7 +221,7 @@ bool OfpCheckAsyncDownload() {
         ofp_info = std::move(ofp_info_new);
 
         LogMsg("OfpCheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
-        if (ofp_info->status != "Success") {
+        if (ofp_info->status != kSuccess) {
             XPSetWidgetDescriptor(status_line, ofp_info->status.c_str());
             return false;  // no download active
         }
@@ -211,6 +239,9 @@ bool OfpCheckAsyncDownload() {
         snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
         ofp_info->altitude = buffer;
         cdm_airport = ofp_info->origin;
+
+        if (pref_fake_cdm)
+            FakeCdm();          // will be overwritten by real cdm data if available
 
         cdm_next_poll_ts = now;  // schedule immediate CDM polling after OFP download
         air_time = 0.0f;
@@ -442,6 +473,8 @@ static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t para
                 DF(0, tobt);
                 DL(1, "TSAT:");
                 DF(1, tsat);
+                DL(0, "CTOT:");
+                DF(0, ctot);
                 DL(0, "Runway:");
                 DF(0, runway);
                 DL(1, "SID:");
@@ -545,6 +578,18 @@ static void MenuCb(void* menu_ref, void* item_ref) {
 
         XPSetWidgetDescriptor(pilot_id_input, pilot_id.c_str());
         conf_widget_ctx.Show();
+        return;
+    }
+
+    if (item_ref == &pref_fake_cdm) {
+        pref_fake_cdm = !pref_fake_cdm;
+        XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
+        LogMsg("pref_fake_cdm set to %d", pref_fake_cdm);
+        if (pref_fake_cdm)
+            FakeCdm();
+        else
+            cdm_info = nullptr;
+
         return;
     }
 }
@@ -695,9 +740,11 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     // build menu
     XPLMMenuID menu = XPLMFindPluginsMenu();
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
-    XPLMMenuID sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
+    sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
     XPLMAppendMenuItem(sbh_menu, "Configure", &conf_widget, 0);
     XPLMAppendMenuItem(sbh_menu, "Show widget", &main_widget, 0);
+    fake_cdm_item = XPLMAppendMenuItem(sbh_menu, "Fake CDM", &pref_fake_cdm, 0);
+    XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
 
     XPLMCommandRef cmdr = XPLMCreateCommand("sbh/toggle", "Toggle Simbrief Hub widget");
     XPLMRegisterCommandHandler(cmdr, ToggleCmdCb, 0, NULL);
@@ -755,6 +802,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     CDM_DATA_DREF(status);
     CDM_DATA_DREF(tobt);
     CDM_DATA_DREF(tsat);
+    CDM_DATA_DREF(ctot);
     CDM_DATA_DREF(runway);
     CDM_DATA_DREF(sid);
 
@@ -788,6 +836,7 @@ PLUGIN_API void XPluginStop(void) {
 }
 
 PLUGIN_API void XPluginDisable(void) {
+    SavePrefs();
 }
 
 PLUGIN_API int XPluginEnable(void) {

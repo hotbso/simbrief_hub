@@ -81,3 +81,11 @@ Therefore Germany should come last.
 Instead of editing this one copy it to ```simbrief_hub\cdm_cfg.json``` and edit there. This file will never be changed by the update process.
 
 If you've discovered additional servers or changes report them in the discord.
+
+## Fake CDM
+If you don't fly on VATSIM or depart from airports that don't provide CDM you can fake CDM information for display on the VDGS.\
+In this mode planned data from simbrief is taken as actual CDM provided data. If you later connect to VATSIM and/or real CDM data comes available fake data is replaced
+automatically by downloaded CDM data.
+
+![Image](images/fake_CDM.jpg)
+
