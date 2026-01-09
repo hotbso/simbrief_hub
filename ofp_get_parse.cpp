@@ -29,9 +29,7 @@
 
 static int seqno;
 
-void
-OfpInfo::Dump() const
-{
+void OfpInfo::Dump() const {
     if (status == "Success") {
 #define L(field) LogMsg(#field ": %s", field.c_str())
         L(units);
@@ -69,14 +67,12 @@ OfpInfo::Dump() const
 }
 
 // super simple xml extractor
-static int
-get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *text_start, int *text_end)
-{
+static int get_element_text(char* xml, int start_ofs, int end_ofs, const char* tag, int* text_start, int* text_end) {
     char stag[50], etag[50];
     snprintf(stag, sizeof(stag), "<%s>", tag);
     snprintf(etag, sizeof(etag), "</%s>", tag);
 
-    char *s = strstr(xml + start_ofs, stag);
+    char* s = strstr(xml + start_ofs, stag);
     if (NULL == s)
         return 0;
 
@@ -85,7 +81,7 @@ get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *te
     // don't run over end_ofs
     int c = xml[end_ofs];
     xml[end_ofs] = '\0';
-    char *e = strstr(s, etag);
+    char* e = strstr(s, etag);
     xml[end_ofs] = c;
 
     if (NULL == e)
@@ -96,20 +92,17 @@ get_element_text(char *xml, int start_ofs, int end_ofs, const char *tag, int *te
     return 1;
 }
 
-#define POSITION(tag) \
-get_element_text(xml, 0, xml_len, tag, &out_s, &out_e)
+#define POSITION(tag) get_element_text(xml, 0, xml_len, tag, &out_s, &out_e)
 
-#define EXTRACT(tag, field) \
-do { \
-    int s, e; \
-    if (get_element_text(xml, out_s, out_e, tag, &s, &e)) { \
-        ofp_info->field = std::string(xml + s, e - s); \
-    } \
-} while (0)
+#define EXTRACT(tag, field)                                     \
+    do {                                                        \
+        int s, e;                                               \
+        if (get_element_text(xml, out_s, out_e, tag, &s, &e)) { \
+            ofp_info->field = std::string(xml + s, e - s);      \
+        }                                                       \
+    } while (0)
 
-bool
-OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
-{
+bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info) {
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id;
     // LogMsg("%s", url);
 
@@ -119,7 +112,7 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
     xml_data.reserve(250 * 1024);
     bool res = HttpGet(url, xml_data, 10);
 
-    if (! res) {
+    if (!res) {
         ofp_info->status = "Network error";
         ofp_info->stale = true;
         return false;
@@ -128,7 +121,7 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
     int xml_len = xml_data.length();
     LogMsg("got ofp xml %d bytes", xml_len);
 
-    char *xml = (char *)xml_data.c_str();
+    char* xml = (char*)xml_data.c_str();
     int out_s, out_e;
 
     if (POSITION("fetch")) {
@@ -161,7 +154,7 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
     if (POSITION("destination")) {
         EXTRACT("icao_code", destination);
         EXTRACT("plan_rwy", destination_rwy);
-     }
+    }
 
     if (POSITION("general")) {
         EXTRACT("icao_airline", icao_airline);
@@ -202,17 +195,16 @@ OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info)
 }
 
 #ifdef TEST_SB_PARSE
-// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c LogMsg.cpp -lwinhttp
-// g++ --std=c++20 -Wall -DLIN=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c LogMsg.cpp -lcurl
+// g++ --std=c++20 -Wall -DIBM=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp
+// http_get.c LogMsg.cpp -lwinhttp g++ --std=c++20 -Wall -DLIN=1 -DTEST_SB_PARSE -DLOCAL_DEBUGSTRING
+// -I../SDK/CHeaders/XPLM  -O ofp_get_parse.cpp http_get.c LogMsg.cpp -lcurl
 #include <ctime>
 
 //
 // call with
 // a.[out,exe] pilot_id
 //
-int
-main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     if (argc < 2) {
         LogMsg("missing argument");
         exit(1);
@@ -228,9 +220,8 @@ main(int argc, char** argv)
 
     auto tm = *std::gmtime(&tg);
     char line[100];
-    snprintf(line, sizeof(line), "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-                   tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-                   tm.tm_hour, tm.tm_min, tm.tm_sec);
+    snprintf(line, sizeof(line), "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC", tm.tm_year + 1900, tm.tm_mon + 1,
+             tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     LogMsg("'%s'", line);
 
     exit(0);
