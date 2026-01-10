@@ -659,7 +659,7 @@ static int GenericDataAcc(const std::string* data, void* values, int ofs, int n)
 
 // data accessor
 // ref = offset of field (std::string) within OfpInfo
-static int OfpDataAcc(XPLMDataRef ref, void* values, int ofs, int n) {
+static int OfpDataAcc(void* ref, void* values, int ofs, int n) {
     if (ofp_info == nullptr || ofp_info->seqno == 0)  // not even stale data
         return 0;
 
@@ -669,7 +669,7 @@ static int OfpDataAcc(XPLMDataRef ref, void* values, int ofs, int n) {
 
 // int accessor
 // ref = offset of field (int) within OfpInfo
-static int OfpIntAcc(XPLMDataRef ref) {
+static int OfpIntAcc(void* ref) {
     if (ofp_info == nullptr)
         return 0;
 
@@ -679,7 +679,7 @@ static int OfpIntAcc(XPLMDataRef ref) {
 
 // data accessor
 // ref = offset of field (std::string) within CdmInfo
-static int CdmDataAcc(XPLMDataRef ref, void* values, int ofs, int n) {
+static int CdmDataAcc(void* ref, void* values, int ofs, int n) {
     if (cdm_info == nullptr || cdm_info->seqno == 0)  // not even stale data
         return 0;
 
@@ -689,7 +689,7 @@ static int CdmDataAcc(XPLMDataRef ref, void* values, int ofs, int n) {
 
 // int accessor
 // ref = offset of field (int) within OfpInfo
-static int CdmIntAcc(XPLMDataRef ref) {
+static int CdmIntAcc(void* ref) {
     if (cdm_info == nullptr)
         return 0;
 
