@@ -72,6 +72,12 @@ void OfpInfo::Dump() const {
 #undef L
 }
 
+// extract string if defined, undefined fields are a null object {}
+static void Extract(const json& field, std::string& str) {
+    if (field.is_string())
+        str = field.get<std::string>();
+}
+
 bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info) {
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id + "&json=1";
     // LogMsg("%s", url);
@@ -109,64 +115,82 @@ bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info
         }
 
         const auto& params = data_obj.at("params");
-        ofp_info->time_generated = params.at("time_generated").get<std::string>();
-        ofp_info->units = params.at("units").get<std::string>();
+        Extract(params.at("time_generated"), ofp_info->time_generated);
+        Extract(params.at("units"), ofp_info->units);
 
         const auto& aircraft = data_obj.at("aircraft");
-        ofp_info->aircraft_icao = aircraft.at("icaocode").get<std::string>();
-        ofp_info->max_passengers = aircraft.at("max_passengers").get<std::string>();
+        Extract(aircraft.at("icaocode"), ofp_info->aircraft_icao);
+        Extract(aircraft.at("max_passengers"), ofp_info->max_passengers);
 
         const auto& fuel = data_obj.at("fuel");
-        ofp_info->fuel_plan_ramp = fuel.at("plan_ramp").get<std::string>();
-        ofp_info->fuel_taxi = fuel.at("taxi").get<std::string>();
-
+        Extract(fuel.at("plan_ramp"), ofp_info->fuel_plan_ramp);
+        Extract(fuel.at("taxi"), ofp_info->fuel_taxi);
         const auto& origin = data_obj.at("origin");
-        ofp_info->origin = origin.at("icao_code").get<std::string>();
-        ofp_info->origin_rwy = origin.at("plan_rwy").get<std::string>();
+        Extract(origin.at("icao_code"), ofp_info->origin);
+        Extract(origin.at("plan_rwy"), ofp_info->origin_rwy);
 
         const auto& destination = data_obj.at("destination");
-        ofp_info->destination = destination.at("icao_code").get<std::string>();
-        ofp_info->destination_rwy = destination.at("plan_rwy").get<std::string>();
+        Extract(destination.at("icao_code"), ofp_info->destination);
+        Extract(destination.at("plan_rwy"), ofp_info->destination_rwy);
 
         const auto& general = data_obj.at("general");
-        ofp_info->icao_airline = general.at("icao_airline").get<std::string>();
-        ofp_info->flight_number = general.at("flight_number").get<std::string>();
-        ofp_info->ci = general.at("costindex").get<std::string>();
-        ofp_info->altitude = general.at("initial_altitude").get<std::string>();
-        ofp_info->tropopause = general.at("avg_tropopause").get<std::string>();
-        ofp_info->wind_component = general.at("avg_wind_comp").get<std::string>();
-        ofp_info->isa_dev = general.at("avg_temp_dev").get<std::string>();
-        ofp_info->route = general.at("route").get<std::string>();
-        ofp_info->sid = general.at("sid_ident").get<std::string>();
-        ofp_info->dx_rmk = general.at("dx_rmk").get<std::string>();
+        Extract(general.at("icao_airline"), ofp_info->icao_airline);
+        Extract(general.at("flight_number"), ofp_info->flight_number);
+        Extract(general.at("costindex"), ofp_info->ci);
+        Extract(general.at("initial_altitude"), ofp_info->altitude);
+        Extract(general.at("avg_tropopause"), ofp_info->tropopause);
+        Extract(general.at("avg_wind_comp"), ofp_info->wind_component);
+        Extract(general.at("avg_temp_dev"), ofp_info->isa_dev);
+        Extract(general.at("route"), ofp_info->route);
+        Extract(general.at("sid_ident"), ofp_info->sid);
+
+        auto const& dx_rmk = general.at("dx_rmk");
+        if (dx_rmk.is_string()) {
+            ofp_info->dx_rmk = dx_rmk.get<std::string>();
+        } else if (dx_rmk.is_array()) {
+            // concatenate array entries with space
+            for (const auto& item : dx_rmk) {
+                if (item.is_string()) {
+                    if (!ofp_info->dx_rmk.empty())
+                        ofp_info->dx_rmk += " ";
+                    ofp_info->dx_rmk += item.get<std::string>();
+                }
+            }
+        }
 
         const auto& alternate = data_obj.at("alternate");
-        ofp_info->alternate = alternate.at("icao_code").get<std::string>();
-        ofp_info->alt_route = alternate.at("route").get<std::string>();
+        Extract(alternate.at("icao_code"), ofp_info->alternate);
+        Extract(alternate.at("route"), ofp_info->alt_route);
 
         const auto& weights = data_obj.at("weights");
-        ofp_info->oew = weights.at("oew").get<std::string>();
-        ofp_info->pax_count = weights.at("pax_count").get<std::string>();
-        ofp_info->freight = weights.at("freight_added").get<std::string>();
-        ofp_info->payload = weights.at("payload").get<std::string>();
-        ofp_info->max_zfw = weights.at("max_zfw").get<std::string>();
-        ofp_info->max_tow = weights.at("max_tow").get<std::string>();
+        Extract(weights.at("oew"), ofp_info->oew);
+        Extract(weights.at("pax_count"), ofp_info->pax_count);
+        Extract(weights.at("freight_added"), ofp_info->freight);
+        Extract(weights.at("payload"), ofp_info->payload);
+        Extract(weights.at("max_zfw"), ofp_info->max_zfw);
+        Extract(weights.at("max_tow"), ofp_info->max_tow);
 
         const auto& times = data_obj.at("times");
-        ofp_info->est_time_enroute = times.at("est_time_enroute").get<std::string>();
-        ofp_info->est_out = times.at("est_out").get<std::string>();
-        ofp_info->est_off = times.at("est_off").get<std::string>();
-        ofp_info->est_on = times.at("est_on").get<std::string>();
-        ofp_info->est_in = times.at("est_in").get<std::string>();
-    } catch (const json::out_of_range& e) {
-        LogMsg("JSON key not found: '%s'", e.what());
+        Extract(times.at("est_time_enroute"), ofp_info->est_time_enroute);
+        Extract(times.at("est_out"), ofp_info->est_out);
+        Extract(times.at("est_off"), ofp_info->est_off);
+        Extract(times.at("est_on"), ofp_info->est_on);
+        Extract(times.at("est_in"), ofp_info->est_in);
+    } catch (const std::exception& e) {
+        LogMsg("error during JSON parsing: '%s'", e.what());
         ofp_info->status = "Invalid JSON data";
         ofp_info->stale = true;
+
+        // for debugging, log the received json without userid
+        data_obj["fetch"]["userid"] = "xxx";
+        data_obj["user_id"] = "xxx";
+        LogMsgRaw(data_obj.dump(4));
         return false;
     }
 
     ofp_info->stale = false;
     ofp_info->seqno = ++seqno;
+    LogMsg("OfpGetParse() success, seqno %d", ofp_info->seqno);
     return true;
 }
 

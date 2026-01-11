@@ -36,10 +36,10 @@ $(OBJDIR)/%.o: %.c $(DEPDIR)/%.d | $(DEPDIR)
 $(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d | $(DEPDIR)
 	$(COMPILE.cpp) $(CXXFLAGS) -o $@ -c $<
 
-install: $(TARGET)
-
-all: install cdm_test.exe
+all: install cdm_test.exe ofp_test.exe
     $(shell [ -d $(OBJDIR) ] || mkdir -p $(OBJDIR))
+
+install: $(TARGET)
 
 XPL_DIR=/E/X-Plane-12-test
 PLUGDIR:=$(XPL_DIR)/Resources/plugins/simbrief_hub/win_x64
