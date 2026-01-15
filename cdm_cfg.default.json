@@ -20,12 +20,6 @@ See https://aman.vatsimspain.es/CDM_feeds.json
             "enabled": true
         },
         {
-            "name": "Scandinavia",
-            "protocol": "vacdm_v1",
-            "url": "https://cdm.vatsim-scandinavia.org",
-            "enabled": true
-        },
-        {
             "name": "France",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim.fr",
