@@ -264,6 +264,12 @@ bool CdmCheckAsyncDownload() {
         [[maybe_unused]] bool res = cdm_download_future.get();
 
         LogMsg("CdmCheckAsyncDownload(): Download status: %s", cdm_info_new->status.c_str());
+        // do not overwrite a fake_cdm with a failed download
+        if (pref_fake_cdm && cdm_info_new->status != kSuccess) {
+            cdm_info_new = nullptr;  // discard failed real download
+            return false;            // no download active
+        }
+
 #define F_EQ(f) (cdm_info->f == cdm_info_new->f)
         if (cdm_info && F_EQ(status) && F_EQ(tobt) && F_EQ(tsat) && F_EQ(runway) && F_EQ(sid)) {
             cdm_info_new = nullptr;  // unchanged, discard
