@@ -158,9 +158,14 @@ bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info
             }
         }
 
-        const auto& alternate = data_obj.at("alternate");
-        Extract(alternate.at("icao_code"), ofp_info->alternate);
-        Extract(alternate.at("route"), ofp_info->alt_route);
+        // there can be multiple or none alternate airports
+        auto& alternate = data_obj.at("alternate");
+        if (!alternate.empty()) {
+            if (alternate.is_array())
+                alternate = alternate[0];  // take first
+            Extract(alternate.at("icao_code"), ofp_info->alternate);
+            Extract(alternate.at("route"), ofp_info->alt_route);
+        }
 
         const auto& weights = data_obj.at("weights");
         Extract(weights.at("oew"), ofp_info->oew);
