@@ -1,7 +1,7 @@
 //
 //    Simbrief Hub: A central resource of simbrief data for other plugins
 //
-//    Copyright (C) 2025 Holger Teutsch
+//    Copyright (C) 2025, 2026 Holger Teutsch
 //
 //    This library is free software; you can redistribute it and/or
 //    modify it under the terms of the GNU Lesser General Public
@@ -33,63 +33,94 @@ using json = nlohmann::json;
 #include "http_get.h"
 
 // https://github.com/rpuig2001/CDM
+// https://viff-system.network/docs
 // https://github.com/vACDM/vacdm-server
 
 static constexpr int kMaxRetries = 3;
-enum CdmProtocol {
-    kProtoInvalid,
-    kProtoRPuig,
-    kProtoVacdmV1
-};
 
 // single airport
 struct Airport {
     std::string icao;
     std::string url;
-    CdmProtocol proto;
 };
 
-// cdm server
-class Server {
+// cdm server abstract base class
+class CdmServer {
+   protected:
+    const std::string name_;
     const std::string url_;
-    const CdmProtocol proto_;
-    bool retrieved_{false};
     int retries_left_{kMaxRetries};
 
    public:
-    const std::string name_;
+    CdmServer(const CdmServer&) = delete;
+    CdmServer& operator=(const CdmServer&) = delete;
+    CdmServer(std::string name, std::string url) : name_(name), url_(url) {}
 
-    Server(const Server&) = delete;
-    Server& operator=(const Server&) = delete;
-    std::unordered_map<std::string, Airport> airports_;
-
-    Server(std::string name, std::string url, CdmProtocol proto)
-        : url_(url), proto_(proto), name_(name) {
+    const std::string& name() const {
+        return name_;
     }
 
-    bool is_dead() const {
+    bool is_dead() const{
         return retries_left_ <= 0;
     }
 
-    // retrieve airports from this server
-    bool RetrieveAirports();
+    virtual bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) = 0;
 };
 
-static std::vector<std::unique_ptr<Server>> servers;
+static std::vector<std::unique_ptr<CdmServer>> cdm_servers;
 
-void
-CdmInfo::Dump() const
-{
-    if (status == "Success") {
+// simple cache for the last successful request as the same flight is likely to be requested again and again
+static int cached_idx;
+static std::string cached_arpt;
+static std::string cached_callsign;
+
+
+// cdm server for R. Puigs CDM legacy protocol
+class CdmServer_rpuig: public CdmServer {
+    bool retrieved_{false};
+    std::unordered_map<std::string, Airport> airports_;
+
+    // retrieve airports from this server
+    bool RetrieveAirports();
+
+   public:
+    CdmServer_rpuig(const CdmServer_rpuig&) = delete;
+    CdmServer_rpuig& operator=(const CdmServer_rpuig&) = delete;
+
+    CdmServer_rpuig(std::string name, std::string url) : CdmServer(name, url) {}
+
+    bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) override;
+};
+
+// cdm server for the vacdm legacy protocol
+class CdmServer_vacdm: public CdmServer {
+    bool retrieved_{false};
+    std::unordered_map<std::string, Airport> airports_;
+
+    // retrieve airports from this server
+    bool RetrieveAirports();
+
+   public:
+    CdmServer_vacdm(const CdmServer_vacdm&) = delete;
+    CdmServer_vacdm& operator=(const CdmServer_vacdm&) = delete;
+
+    CdmServer_vacdm(std::string name, std::string url) : CdmServer(name, url) {}
+
+    bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) override;
+};
+
+// some helpers
+void CdmInfo::Dump() const {
 #define L(field) LogMsg(#field ": %s", field.c_str())
-        L(url);
-        L(status);
+    L(status);
+    L(url);
+
+    if (status == kSuccess) {
         L(tobt);
         L(tsat);
         L(runway);
         L(sid);
-    } else
-        LogMsg("%s", status.c_str());
+    }
 #undef L
 }
 
@@ -118,22 +149,28 @@ json GetJson(const std::string& url) {
     return json();
 }
 
+// extract HHMM from something like "2025-07-28T09:45:06.694Z"
+static std::string ExtractHHMM(const std::string& time) {
+    if (time == "1969-12-31T23:59:59.999Z" || time.length() < 16)
+        return "";
+
+    return time.substr(11, 2) + time.substr(14, 2);
+}
+
+//
+// RPuig implementation
+//
+
 // Load served airports
 // Attempts to retrieve the list of airports served by this server.
 // Returns true on success, false on failure. Retries up to kMaxRetries times before marking the server as dead.
-bool Server::RetrieveAirports() {
+bool CdmServer_rpuig::RetrieveAirports() {
     if (retrieved_)
         return true;
 
     LogMsg("Loading airports for '%s' url: '%s'", name_.c_str(), url_.c_str());
 
-    std::string api_url;
-    if (proto_ == kProtoRPuig)
-        api_url = url_ + "/CDM_feeds.json";
-    else if (proto_ == kProtoVacdmV1)
-        api_url = url_ + "/api/v1/airports";
-    else
-        throw std::runtime_error("Oh no, how could that happen: invalid protocol");
+    const std::string api_url = url_ + "/CDM_feeds.json";
 
     json data_obj = GetJson(api_url);
     if (data_obj.is_null()) {
@@ -142,27 +179,10 @@ bool Server::RetrieveAirports() {
     }
 
     try {
-        switch (proto_) {
-            case kProtoRPuig: {
-                const auto& airport_obj = data_obj.at("airports");
-                for (auto const& [icao, url_list] : airport_obj.items()) {
-                    airports_[icao] = Airport{icao, url_list[0].get<std::string>(), proto_};
-                    LogMsg("  '%s'", icao.c_str());
-                }
-                break;
-            }
-
-            case kProtoVacdmV1: {
-                for (auto const& a : data_obj) {
-                    auto icao = a.at("icao").get<std::string>();
-                    airports_[icao] = Airport{icao, url_, proto_};
-                    LogMsg("  '%s'", icao.c_str());
-                }
-                break;
-            }
-
-            default:
-                assert(0);
+        const auto& airport_obj = data_obj.at("airports");
+        for (auto const& [icao, url_list] : airport_obj.items()) {
+            airports_[icao] = Airport{icao, url_list[0].get<std::string>()};
+            LogMsg("  '%s'", icao.c_str());
         }
     } catch (const std::exception& e) {
         LogMsg("Invalid airport data: '%s'", e.what());
@@ -173,45 +193,143 @@ bool Server::RetrieveAirports() {
     return true;
 }
 
-// Find url for an airport
-// Returns a pair of (url, protocol) for the given ICAO code.
-// If no matching airport is found, returns ("", kProtoInvalid).
-static std::pair<std::string, CdmProtocol> FindUrl(const std::string& icao) {
-    // unlikely to change, cache successful queries
-    static std::string icao_c, url_c;
-    static CdmProtocol proto_c;
-
-    if (icao == icao_c)
-        return std::make_pair(url_c, proto_c);
-
-    for (auto& s : servers) {
-        if (s->is_dead()) {
-            LogMsg("Server '%s' is dead, skipping", s->name_.c_str());
-            continue;
-        }
-
-        if (!s->RetrieveAirports())
-            continue;
-
-        auto it = s->airports_.find(icao);
-        if (it == s->airports_.end())
-            continue;
-
-        const auto& h = it->second;
-        icao_c = icao;
-        url_c = h.url;
-        proto_c = h.proto;
-        return std::make_pair(url_c, proto_c);
+// get and parse cdm data for airport/flight
+bool CdmServer_rpuig::CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) {
+    if (is_dead()) {
+        LogMsg("CdmServer '%s' is dead, skipping", name().c_str());
+        return false;
     }
 
-    return std::make_pair("", kProtoInvalid);
+    if (!RetrieveAirports())
+        return false;
+
+    const auto it = airports_.find(arpt_icao);
+    if (it == airports_.end())
+        return false;
+
+    cdm_info.url = it->second.url;
+
+    json arpt_obj = GetJson(cdm_info.url);
+    if (arpt_obj.is_null()) {
+        cdm_info.status = "Failed to retrieve CDM data";
+        return false;
+    }
+
+    try {
+        const auto& flights = arpt_obj.at("flights").get<json>();
+        // LogMsgRaw(flights.dump(4));
+        for (const auto& f : flights) {
+            if (f.at("callsign").get<std::string>() == callsign) {
+                // LogMsgRaw(f.dump(4));
+#define EXTRACT(fn) cdm_info.fn = f.at(#fn).get<std::string>()
+                EXTRACT(tobt);
+                EXTRACT(tsat);
+                EXTRACT(runway);
+                EXTRACT(sid);
+                cdm_info.status = kSuccess;
+                LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), cdm_info.url.c_str());
+                return true;
+#undef EXTRACT
+            }
+        }
+        LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+    } catch (const std::exception& e) {
+        LogMsg("Exception: '%s'", e.what());
+    }
+
+    cdm_info.status = "Flight not found";
+    return false;
 }
 
+//
+// vacdm implementation
+//
+bool CdmServer_vacdm::RetrieveAirports() {
+    if (retrieved_)
+        return true;
+
+    LogMsg("Loading airports for '%s' url: '%s'", name_.c_str(), url_.c_str());
+
+    std::string api_url = url_ + "/api/v1/airports";
+
+    json data_obj = GetJson(api_url);
+    if (data_obj.is_null()) {
+        LogMsg("Can't retrieve from '%s', retries left: %d", api_url.c_str(), --retries_left_);
+        return false;
+    }
+
+    try {
+        for (auto const& a : data_obj) {
+            auto icao = a.at("icao").get<std::string>();
+            airports_[icao] = Airport{icao, url_};
+            LogMsg("  '%s'", icao.c_str());
+        }
+    } catch (const std::exception& e) {
+        LogMsg("Invalid airport data: '%s'", e.what());
+        return false;
+    }
+
+    retrieved_ = true;
+    return true;
+}
+
+// get and parse cdm data for airport/flight
+bool CdmServer_vacdm::CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) {
+    if (is_dead()) {
+        LogMsg("CdmServer '%s' is dead, skipping", name().c_str());
+        return false;
+    }
+
+    if (!RetrieveAirports())
+        return false;
+
+    const auto it = airports_.find(arpt_icao);
+    if (it == airports_.end())
+        return false;
+
+    cdm_info.url = it->second.url;
+
+    cdm_info.url += std::string("/api/v1/pilots/") + callsign;
+    json flight = GetJson(cdm_info.url);
+    if (flight.is_null()) {
+        cdm_info.status = "Failed to retrieve CDM data";
+        return false;
+    }
+
+    try {
+        const auto& vacdm = flight.at("vacdm").get<json>();
+        cdm_info.tobt = ExtractHHMM(vacdm.at("tobt").get<std::string>());
+        cdm_info.tsat = ExtractHHMM(vacdm.at("tsat").get<std::string>());
+        const auto& clearance = flight.at("clearance").get<json>();
+        cdm_info.runway = clearance.at("dep_rwy").get<std::string>();
+        cdm_info.sid = clearance.at("sid").get<std::string>();
+        cdm_info.status = kSuccess;
+        return true;
+    } catch (const json::out_of_range& e) {
+        LogMsg("JSON key not found: '%s'", e.what());
+        cdm_info.status = "Flight not found";
+    } catch (const std::exception& e) {
+        LogMsg("Exception: '%s'", e.what());
+        cdm_info.status = e.what();
+    }
+
+    LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+
+    cdm_info.status = "Flight not found";
+    return false;
+}
+
+//
+// Global entry points
+//
 bool CdmInit(const std::string& cfg_path) {
+    cached_idx = -1;
+
     std::ifstream f(cfg_path);
     if (f.fail())
         return false;
 
+    // read whole file into string
     f.seekg(0, std::ios::end);
     size_t size = f.tellg();
     std::string content;
@@ -219,6 +337,7 @@ bool CdmInit(const std::string& cfg_path) {
     f.seekg(0);
     f.read(content.data(), size);
     LogMsgRaw(content.c_str());
+
     auto mm_pos = content.find("#&*!");
     if (mm_pos == std::string::npos) {
         LogMsg("Magic marker not found in '%s'", cfg_path.c_str());
@@ -233,23 +352,21 @@ bool CdmInit(const std::string& cfg_path) {
         for (const auto& s : cfg.at("servers").get<json::array_t>()) {
             const auto& name = s.at("name").get<std::string>();
             if (!s.at("enabled").get<bool>()) {
-                LogMsg("Server '%s' is disabled, skipping", name.c_str());
+                LogMsg("CdmServer '%s' is disabled, skipping", name.c_str());
                 continue;
             }
             const auto& protocol = s.at("protocol").get<std::string>();
             const auto& url = s.at("url").get<std::string>();
             LogMsg("server: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
 
-            CdmProtocol proto;
             if (protocol == "rpuig")
-                proto = kProtoRPuig;
+                cdm_servers.push_back(std::make_unique<CdmServer_rpuig>(name, url));
             else if (protocol == "vacdm_v1")
-                proto = kProtoVacdmV1;
+                cdm_servers.push_back(std::make_unique<CdmServer_vacdm>(name, url));
             else {
                 LogMsg("Sorry, only 'rpuig' or 'vacdm_v1' are currently supported");
                 return false;
             }
-            servers.push_back(std::make_unique<Server>(name, url, proto));
         }
     } catch (const std::exception& e) {
         LogMsg("Exception: '%s'", e.what());
@@ -258,91 +375,32 @@ bool CdmInit(const std::string& cfg_path) {
     return true;
 }
 
-// extract HHMM from something like "2025-07-28T09:45:06.694Z"
-static std::string ExtractHHMM(const std::string& time) {
-    if (time == "1969-12-31T23:59:59.999Z" || time.length() < 16)
-        return "";
-
-    return time.substr(11, 2) + time.substr(14, 2);
-}
-
 // get and parse cdm data for airport/flight
 // *** runs in an async ***
 bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std::unique_ptr<CdmInfo>& cdm_info) {
     cdm_info = std::make_unique<CdmInfo>();
 
-    auto [url, proto] = FindUrl(arpt_icao);
-    if (url.empty()) {
-        LogMsg("Feed for %s not found", arpt_icao.c_str());
-        cdm_info->status = "Feed for airport not found";
-        return false;
+    if (cached_idx >= 0 && cached_arpt == arpt_icao && cached_callsign == callsign) {
+        LogMsg("Cache hit for '%s' '%s' on server '%s'", arpt_icao.c_str(), callsign.c_str(), cdm_servers[cached_idx]->name().c_str());
+        return cdm_servers[cached_idx]->CdmGetParse(arpt_icao, callsign, *cdm_info);
     }
 
-    cdm_info->url = url;
-
-    switch (proto) {
-        case kProtoVacdmV1: {
-            cdm_info->url += std::string("/api/v1/pilots/") + callsign;
-            json flight = GetJson(cdm_info->url);
-            if (flight.is_null()) {
-                cdm_info->status = "Failed to retrieve CDM data";
-                return false;
-            }
-
-            try {
-                const auto& vacdm = flight.at("vacdm").get<json>();
-                cdm_info->tobt = ExtractHHMM(vacdm.at("tobt").get<std::string>());
-                cdm_info->tsat = ExtractHHMM(vacdm.at("tsat").get<std::string>());
-                const auto& clearance = flight.at("clearance").get<json>();
-                cdm_info->runway = clearance.at("dep_rwy").get<std::string>();
-                cdm_info->sid = clearance.at("sid").get<std::string>();
-                cdm_info->status = kSuccess;
-                return true;
-            } catch (const json::out_of_range& e) {
-                LogMsg("JSON key not found: '%s'", e.what());
-                cdm_info->status = "Flight not found";
-            } catch (const std::exception& e) {
-                LogMsg("Exception: '%s'", e.what());
-                cdm_info->status = e.what();
-            }
-            break;
+    for (auto i = 0; i < (int)cdm_servers.size(); i++) {
+        auto& s = cdm_servers[i];
+        if (s->is_dead()) {
+            LogMsg("CdmServer '%s' is dead, skipping", s->name().c_str());
+            continue;
         }
 
-        case kProtoRPuig: {
-            json arpt_obj = GetJson(cdm_info->url);
-            if (arpt_obj.is_null()) {
-                cdm_info->status = "Failed to retrieve CDM data";
-                return false;
-            }
-
-            try {
-                const auto& flights = arpt_obj.at("flights").get<json>();
-                // LogMsgRaw(flights.dump(4));
-                for (const auto& f : flights) {
-                    if (f.at("callsign").get<std::string>() == callsign) {
-                        // LogMsgRaw(f.dump(4));
-#define EXTRACT(fn) cdm_info->fn = f.at(#fn).get<std::string>()
-                        EXTRACT(tobt);
-                        EXTRACT(tsat);
-                        EXTRACT(runway);
-                        EXTRACT(sid);
-                        cdm_info->status = kSuccess;
-                        LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), url.c_str());
-                        return true;
-#undef EXTRACT
-                    }
-                }
-                LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
-            } catch (const std::exception& e) {
-                LogMsg("Exception: '%s'", e.what());
-            }
-            break;
+        if (s->CdmGetParse(arpt_icao, callsign, *cdm_info)) {
+            cached_idx = i;
+            cached_arpt = arpt_icao;
+            cached_callsign = callsign;
+            return true;
         }
-
-        default:
-            LogMsg("Unsupported protocol");
     }
 
     cdm_info->status = "Flight not found";
+    cached_idx = -1;
     return false;
 }
