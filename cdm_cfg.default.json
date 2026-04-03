@@ -1,10 +1,5 @@
 Order matters!
 
-The German server seems to be showcasing the vACDM product.
-Hence it contains a lot of configuration data of airports that meanwhile have
-their own server or run elsewhere. E.g. EGxx that runs on Spain.
-
-Therefore Germany should come last.
 
 Note that Spain serves a lot of airports.
 See https://aman.vatsimspain.es/CDM_feeds.json
@@ -29,12 +24,6 @@ See https://aman.vatsimspain.es/CDM_feeds.json
             "name": "China",
             "protocol": "vacdm_v1",
             "url": "https://vacdm.vatprc.net",
-            "enabled": true
-        },
-        {
-            "name": "Germany",
-            "protocol": "vacdm_v1",
-            "url": "https://app.vacdm.net",
             "enabled": true
         }
     ]
