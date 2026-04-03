@@ -54,7 +54,8 @@ class CdmServer {
    public:
     CdmServer(const CdmServer&) = delete;
     CdmServer& operator=(const CdmServer&) = delete;
-    CdmServer(std::string name, std::string url) : name_(name), url_(url) {}
+    CdmServer(const std::string &name, const std::string& url) : name_(name), url_(url) {}
+    virtual ~CdmServer() = default;
 
     const std::string& name() const {
         return name_;
@@ -70,12 +71,14 @@ class CdmServer {
 static std::vector<std::unique_ptr<CdmServer>> cdm_servers;
 
 // simple cache for the last successful request as the same flight is likely to be requested again and again
-static int cached_idx;
-static std::string cached_arpt;
-static std::string cached_callsign;
+static struct Cache {
+    std::string arpt_icao;
+    std::string callsign;
+    int idx;
+} cache;
 
 
-// cdm server for R. Puigs CDM legacy protocol
+// cdm server for R. Puig's CDM legacy protocol
 class CdmServer_rpuig: public CdmServer {
     bool retrieved_{false};
     std::unordered_map<std::string, Airport> airports_;
@@ -87,7 +90,18 @@ class CdmServer_rpuig: public CdmServer {
     CdmServer_rpuig(const CdmServer_rpuig&) = delete;
     CdmServer_rpuig& operator=(const CdmServer_rpuig&) = delete;
 
-    CdmServer_rpuig(std::string name, std::string url) : CdmServer(name, url) {}
+    CdmServer_rpuig(const std::string& name, const std::string& url) : CdmServer(name, url) {}
+
+    bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) override;
+};
+
+// cdm server for R. Puig's vIFF system
+class CdmServer_viff: public CdmServer {
+   public:
+    CdmServer_viff(const CdmServer_viff&) = delete;
+    CdmServer_viff& operator=(const CdmServer_viff&) = delete;
+
+    CdmServer_viff(const std::string& name, const std::string& url) : CdmServer(name, url) {}
 
     bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) override;
 };
@@ -104,12 +118,14 @@ class CdmServer_vacdm: public CdmServer {
     CdmServer_vacdm(const CdmServer_vacdm&) = delete;
     CdmServer_vacdm& operator=(const CdmServer_vacdm&) = delete;
 
-    CdmServer_vacdm(std::string name, std::string url) : CdmServer(name, url) {}
+    CdmServer_vacdm(const std::string& name, const std::string& url) : CdmServer(name, url) {}
 
     bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) override;
 };
 
+//
 // some helpers
+//
 void CdmInfo::Dump() const {
 #define L(field) LogMsg(#field ": %s", field.c_str())
     L(status);
@@ -136,6 +152,11 @@ json GetJson(const std::string& url) {
     }
 
     int len = data.length();
+    if (len == 0) {
+        LogMsg("Empty response from '%s'", url.c_str());
+        return json();
+    }
+
     LogMsg("got data %d bytes", len);
 
     try {
@@ -195,10 +216,8 @@ bool CdmServer_rpuig::RetrieveAirports() {
 
 // get and parse cdm data for airport/flight
 bool CdmServer_rpuig::CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) {
-    if (is_dead()) {
-        LogMsg("CdmServer '%s' is dead, skipping", name().c_str());
+    if (is_dead())
         return false;
-    }
 
     if (!RetrieveAirports())
         return false;
@@ -242,6 +261,63 @@ bool CdmServer_rpuig::CdmGetParse(const std::string& arpt_icao, const std::strin
 }
 
 //
+// vIFF implementation
+//
+// get and parse cdm data for airport/flight
+bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) {
+    if (is_dead())
+        return false;
+
+    cdm_info.url = url_ + "/ifps/callsign?callsign=" + callsign;
+
+    json flight_obj = GetJson(cdm_info.url);
+    if (flight_obj.is_null()) {
+        cdm_info.status = "Failed to retrieve CDM data";
+        LogMsg("flight '%s' not present on vIFF server'%s'", callsign.c_str(), name().c_str());
+        return false;
+    }
+
+    try {
+        const auto& dep = flight_obj.at("departure").get<std::string>();
+        if (dep != arpt_icao) {
+            cdm_info.status = "Flight not departing from this airport";
+            LogMsg("flight '%s' departs from '%s', not from '%s'", callsign.c_str(), dep.c_str(), arpt_icao.c_str());
+            return false;
+        }
+
+        const auto& cdm_obj = flight_obj.at("cdmData").get<json>();
+        LogMsgRaw(cdm_obj.dump(4));
+
+        cdm_info.tobt = cdm_obj.at("tobt").get<std::string>().substr(0, 4);
+        cdm_info.tsat = cdm_obj.at("tsat").get<std::string>().substr(0, 4);
+
+        // "depInfo": "27L/TOLTA1F"
+        std::string dep_info = cdm_obj.at("depInfo").get<std::string>();
+        if (cdm_info.tobt.empty() && cdm_info.tsat.empty() && dep_info.empty()) {
+            cdm_info.status = "Empty CDM data";
+            LogMsg("CDM data for flight '%s' on vIFF server'%s' found but is empty", callsign.c_str(), name().c_str());
+            return false;
+        }
+
+        auto i = dep_info.find("/");
+        if (i != std::string::npos) {
+            cdm_info.runway = dep_info.substr(0, i);
+            cdm_info.sid = dep_info.substr(i + 1);
+        }
+
+        cdm_info.status = kSuccess;
+        LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), cdm_info.url.c_str());
+        return true;
+    } catch (const std::exception& e) {
+        LogMsg("Exception: '%s'", e.what());
+    }
+
+    cdm_info.status = "Flight not found";
+    return false;
+}
+
+
+//
 // vacdm implementation
 //
 bool CdmServer_vacdm::RetrieveAirports() {
@@ -275,10 +351,8 @@ bool CdmServer_vacdm::RetrieveAirports() {
 
 // get and parse cdm data for airport/flight
 bool CdmServer_vacdm::CdmGetParse(const std::string& arpt_icao, const std::string& callsign, CdmInfo& cdm_info) {
-    if (is_dead()) {
-        LogMsg("CdmServer '%s' is dead, skipping", name().c_str());
+    if (is_dead())
         return false;
-    }
 
     if (!RetrieveAirports())
         return false;
@@ -323,7 +397,7 @@ bool CdmServer_vacdm::CdmGetParse(const std::string& arpt_icao, const std::strin
 // Global entry points
 //
 bool CdmInit(const std::string& cfg_path) {
-    cached_idx = -1;
+    cache.idx = -1;
 
     std::ifstream f(cfg_path);
     if (f.fail())
@@ -361,10 +435,12 @@ bool CdmInit(const std::string& cfg_path) {
 
             if (protocol == "rpuig")
                 cdm_servers.push_back(std::make_unique<CdmServer_rpuig>(name, url));
+            else if (protocol == "viff")
+                cdm_servers.push_back(std::make_unique<CdmServer_viff>(name, url));
             else if (protocol == "vacdm_v1")
                 cdm_servers.push_back(std::make_unique<CdmServer_vacdm>(name, url));
             else {
-                LogMsg("Sorry, only 'rpuig' or 'vacdm_v1' are currently supported");
+                LogMsg("Sorry, only 'rpuig', 'viff' or 'vacdm_v1' are currently supported");
                 return false;
             }
         }
@@ -380,9 +456,9 @@ bool CdmInit(const std::string& cfg_path) {
 bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std::unique_ptr<CdmInfo>& cdm_info) {
     cdm_info = std::make_unique<CdmInfo>();
 
-    if (cached_idx >= 0 && cached_arpt == arpt_icao && cached_callsign == callsign) {
-        LogMsg("Cache hit for '%s' '%s' on server '%s'", arpt_icao.c_str(), callsign.c_str(), cdm_servers[cached_idx]->name().c_str());
-        return cdm_servers[cached_idx]->CdmGetParse(arpt_icao, callsign, *cdm_info);
+    if (cache.idx >= 0 && cache.arpt_icao == arpt_icao && cache.callsign == callsign) {
+        LogMsg("Cache hit for '%s' '%s' on server '%s'", arpt_icao.c_str(), callsign.c_str(), cdm_servers[cache.idx]->name().c_str());
+        return cdm_servers[cache.idx]->CdmGetParse(arpt_icao, callsign, *cdm_info);
     }
 
     for (auto i = 0; i < (int)cdm_servers.size(); i++) {
@@ -393,14 +469,14 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
         }
 
         if (s->CdmGetParse(arpt_icao, callsign, *cdm_info)) {
-            cached_idx = i;
-            cached_arpt = arpt_icao;
-            cached_callsign = callsign;
+            cache.idx = i;
+            cache.arpt_icao = arpt_icao;
+            cache.callsign = callsign;
             return true;
         }
     }
 
     cdm_info->status = "Flight not found";
-    cached_idx = -1;
+    cache.idx = -1;
     return false;
 }
