@@ -34,11 +34,15 @@ Unfortunately there is no central repository of available (= regional) CDM servi
 ```
 Order matters!
 
-The German server seems to be showcasing the vACDM product.
-Hence it contains a lot of configuration data of airports that meanwhile have
-their own server or run elsewhere. E.g. EGxx that runs on Spain.
+Most European airports are now served by vIFF.
+Check https://viff-system.network/docs
 
-Therefore Germany should come last.
+Protocols:
+- viff: vIFF, https://viff-system.network
+- rpuig: legacy protocol, https://aman.vatsimspain.es
+- vacdm_v1: legacy protocol used by France and China, https://cdm.vatsim.fr, https://vacdm.vatprc.net
+
+During the migration phase viff should act as catch-all for airports not served by the legacy protocols and be last.
 
 !*&# -------- valid json enforced below this line -------- #&*!
 {
@@ -47,24 +51,12 @@ Therefore Germany should come last.
             "name": "Spain",
             "protocol": "rpuig",
             "url": "https://aman.vatsimspain.es",
-            "enabled": true
-        },
-        {
-            "name": "Scandinavia",
-            "protocol": "vacdm_v1",
-            "url": "https://cdm.vatsim-scandinavia.org",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "France",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim.fr",
-            "enabled": true
-        },
-        {
-            "name": "Austria",
-            "protocol": "vacdm_v1",
-            "url": "https://vacdm.vacc-austria.org",
             "enabled": true
         },
         {
@@ -74,9 +66,9 @@ Therefore Germany should come last.
             "enabled": true
         },
         {
-            "name": "Germany",
-            "protocol": "vacdm_v1",
-            "url": "https://app.vacdm.net",
+            "name": "vIFF",
+            "protocol": "viff",
+            "url": "https://viff-system.network",
             "enabled": true
         }
     ]
