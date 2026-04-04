@@ -1,4 +1,4 @@
-# simbrief_hub
+# simbrief_hub for X-Plane
 A central resource of simbrief data for other plugins.
 
 Download link: https://github.com/hotbso/simbrief_hub/releases/latest.
