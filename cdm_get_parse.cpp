@@ -38,12 +38,6 @@ using json = nlohmann::json;
 
 static constexpr int kMaxRetries = 3;
 
-// single airport
-struct Airport {
-    std::string icao;
-    std::string url;
-};
-
 // cdm server abstract base class
 class CdmServer {
    protected:
@@ -81,7 +75,9 @@ static struct Cache {
 // cdm server for R. Puig's CDM legacy protocol
 class CdmServer_rpuig: public CdmServer {
     bool retrieved_{false};
-    std::unordered_map<std::string, Airport> airports_;
+
+    // icao -> url
+    std::unordered_map<std::string, std::string> arpt_urls_;
 
     // retrieve airports from this server
     bool RetrieveAirports();
@@ -109,7 +105,9 @@ class CdmServer_viff: public CdmServer {
 // cdm server for the vacdm legacy protocol
 class CdmServer_vacdm: public CdmServer {
     bool retrieved_{false};
-    std::unordered_map<std::string, Airport> airports_;
+
+    // icao -> url
+    std::unordered_map<std::string, std::string> arpt_urls_;
 
     // retrieve airports from this server
     bool RetrieveAirports();
@@ -202,7 +200,7 @@ bool CdmServer_rpuig::RetrieveAirports() {
     try {
         const auto& airport_obj = data_obj.at("airports");
         for (auto const& [icao, url_list] : airport_obj.items()) {
-            airports_[icao] = Airport{icao, url_list[0].get<std::string>()};
+            arpt_urls_[icao] = url_list[0].get<std::string>();
             LogMsg("  '%s'", icao.c_str());
         }
     } catch (const std::exception& e) {
@@ -222,11 +220,11 @@ bool CdmServer_rpuig::CdmGetParse(const std::string& arpt_icao, const std::strin
     if (!RetrieveAirports())
         return false;
 
-    const auto it = airports_.find(arpt_icao);
-    if (it == airports_.end())
+    const auto it = arpt_urls_.find(arpt_icao);
+    if (it == arpt_urls_.end())
         return false;
 
-    cdm_info.url = it->second.url;
+    cdm_info.url = it->second;
 
     json arpt_obj = GetJson(cdm_info.url);
     if (arpt_obj.is_null()) {
@@ -337,7 +335,7 @@ bool CdmServer_vacdm::RetrieveAirports() {
     try {
         for (auto const& a : data_obj) {
             auto icao = a.at("icao").get<std::string>();
-            airports_[icao] = Airport{icao, url_};
+            arpt_urls_[icao] = url_;
             LogMsg("  '%s'", icao.c_str());
         }
     } catch (const std::exception& e) {
@@ -357,11 +355,11 @@ bool CdmServer_vacdm::CdmGetParse(const std::string& arpt_icao, const std::strin
     if (!RetrieveAirports())
         return false;
 
-    const auto it = airports_.find(arpt_icao);
-    if (it == airports_.end())
+    const auto it = arpt_urls_.find(arpt_icao);
+    if (it == arpt_urls_.end())
         return false;
 
-    cdm_info.url = it->second.url;
+    cdm_info.url = it->second;
 
     cdm_info.url += std::string("/api/v1/pilots/") + callsign;
     json flight = GetJson(cdm_info.url);
