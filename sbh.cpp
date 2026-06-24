@@ -119,7 +119,8 @@ static void LoadPrefs() {
     f >> pilot_id >> pref_fake_cdm;
 }
 
-static int ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2) {
+static int ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, [[maybe_unused]] intptr_t param1,
+                        [[maybe_unused]] intptr_t param2) {
     if (msg == xpMessage_CloseButtonPushed) {
         conf_widget_ctx.Hide();
         return 1;
@@ -349,7 +350,8 @@ static int FormatRoute(float* bg_color, std::string& route, int right_col, int y
     return y;
 }
 
-static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, intptr_t param1, intptr_t param2) {
+static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, [[maybe_unused]] intptr_t param1,
+                        [[maybe_unused]] intptr_t param2) {
     if (msg == xpMessage_CloseButtonPushed) {
         main_widget_ctx.Hide();
         return 1;
@@ -545,7 +547,7 @@ static void CreateWidget() {
         XPCreateCustomWidget(left + 10, top, left + width - 20, top - height + 10, 1, "", 0, main_widget, MainWidgetCb);
 }
 
-static void MenuCb(void* menu_ref, void* item_ref) {
+static void MenuCb([[maybe_unused]] void* menu_ref, void* item_ref) {
     // create gui
     if (item_ref == &main_widget) {
         main_widget_ctx.Show();
@@ -601,7 +603,7 @@ static void MenuCb(void* menu_ref, void* item_ref) {
 }
 
 // call back for fetch cmd
-static int FetchCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
+static int FetchCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
     if (xplm_CommandBegin != phase)
         return 0;
 
@@ -611,7 +613,7 @@ static int FetchCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unuse
 }
 
 // call back for toggle cmd
-static int ToggleCmdCb(XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
+static int ToggleCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
     if (xplm_CommandBegin != phase)
         return 0;
 
