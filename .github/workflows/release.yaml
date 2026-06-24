@@ -60,7 +60,7 @@ jobs:
           tar cvf binary.tar simbrief_hub/*_x64
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-${{ matrix.os }}
           path: binary.tar
@@ -105,7 +105,7 @@ jobs:
             tar cvf binary.tar simbrief_hub/*_x64
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-windows
           path: binary.tar
@@ -149,7 +149,7 @@ jobs:
               tar xvf $t
             done
 
-            RELEASE_FOLDER=release/simbrief_hub
+            RELEASE_FOLDER="${{ github.workspace }}/release/simbrief_hub"
             mkdir -p "${RELEASE_FOLDER}"
             (cd simbrief_hub; cp -r * "${RELEASE_FOLDER}/")
 
