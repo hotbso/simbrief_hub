@@ -106,8 +106,8 @@ class CdmServer_viff: public CdmServer {
 class CdmServer_vacdm: public CdmServer {
     bool retrieved_{false};
 
-    // icao -> url
-    std::unordered_map<std::string, std::string> arpt_urls_;
+    // served airports
+    std::unordered_map<std::string, bool> airports_;
 
     // retrieve airports from this server
     bool RetrieveAirports();
@@ -335,7 +335,7 @@ bool CdmServer_vacdm::RetrieveAirports() {
     try {
         for (auto const& a : data_obj) {
             auto icao = a.at("icao").get<std::string>();
-            arpt_urls_[icao] = url_;
+            airports_[icao] = true;
             LogMsg("  '%s'", icao.c_str());
         }
     } catch (const std::exception& e) {
@@ -355,13 +355,11 @@ bool CdmServer_vacdm::CdmGetParse(const std::string& arpt_icao, const std::strin
     if (!RetrieveAirports())
         return false;
 
-    const auto it = arpt_urls_.find(arpt_icao);
-    if (it == arpt_urls_.end())
+    const auto it = airports_.find(arpt_icao);
+    if (it == airports_.end())
         return false;
 
-    cdm_info.url = it->second;
-
-    cdm_info.url += std::string("/api/v1/pilots/") + callsign;
+    cdm_info.url = url_ + std::string("/api/v1/pilots/") + callsign;
     json flight = GetJson(cdm_info.url);
     if (flight.is_null()) {
         cdm_info.status = "Failed to retrieve CDM data";
