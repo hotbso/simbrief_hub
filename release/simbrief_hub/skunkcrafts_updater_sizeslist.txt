@@ -1,0 +1,6 @@
+cdm_cfg.default.json|1162
+nlohmann-LICENSE.MIT|1076
+mac_x64/simbrief_hub.xpl|578768
+lin_x64/simbrief_hub.xpl|376344
+README.html|710
+win_x64/simbrief_hub.xpl|3335841
