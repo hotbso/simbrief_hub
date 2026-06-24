@@ -588,32 +588,10 @@ static void MenuCb([[maybe_unused]] void* menu_ref, void* item_ref) {
         conf_widget_ctx.Show();
         return;
     }
-
-    if (item_ref == &pref_fake_cdm) {
-        pref_fake_cdm = !pref_fake_cdm;
-        XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
-        LogMsg("pref_fake_cdm set to %d", pref_fake_cdm);
-        if (pref_fake_cdm)
-            FakeCdm();
-        else
-            cdm_info = nullptr;
-
-        return;
-    }
-}
-
-// call back for fetch cmd
-static int FetchCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
-    if (xplm_CommandBegin != phase)
-        return 0;
-
-    LogMsg("fetch cmd called");
-    FetchOfp();
-    return 0;
 }
 
 // call back for toggle cmd
-static int ToggleCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
+static int ToggleUiCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
     if (xplm_CommandBegin != phase)
         return 0;
 
@@ -745,20 +723,48 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     num_engines_dr = XPLMFindDataRef("sim/aircraft/engine/acf_num_engines");
     eng_running_dr = XPLMFindDataRef("sim/flightmodel/engine/ENGN_running");
 
+    XPLMCommandRef cmdr = XPLMCreateCommand("sbh/toggle", "Toggle Simbrief Hub widget");
+    XPLMRegisterCommandHandler(cmdr, ToggleUiCmdCb, 0, NULL);
+
+    cmdr = XPLMCreateCommand("sbh/fetch", "Fetch ofp data and show in widget");
+    XPLMRegisterCommandHandler(
+        cmdr,
+        [](XPLMCommandRef, XPLMCommandPhase phase, void*) -> int {
+            if (xplm_CommandBegin != phase)
+                return 0;
+
+            LogMsg("fetch cmd called");
+            FetchOfp();
+            return 0;
+        },
+        0, NULL);
+
+    XPLMCommandRef fake_cmdr = XPLMCreateCommand("sbh/toggle_fake_cdm", "Toggle fake CDM data");
+    XPLMRegisterCommandHandler(
+        fake_cmdr,
+        [](XPLMCommandRef, XPLMCommandPhase phase, void*) -> int {
+            if (xplm_CommandBegin != phase)
+                return 0;
+
+            pref_fake_cdm = !pref_fake_cdm;
+            LogMsg("pref_fake_cdm set to %d", pref_fake_cdm);
+            XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
+            if (pref_fake_cdm)
+                FakeCdm();
+            else
+                cdm_info = nullptr;
+
+            return 0;
+        },
+        0, NULL);
+
     // build menu
     XPLMMenuID menu = XPLMFindPluginsMenu();
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
     sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
     XPLMAppendMenuItem(sbh_menu, "Configure", &conf_widget, 0);
     XPLMAppendMenuItem(sbh_menu, "Show widget", &main_widget, 0);
-    fake_cdm_item = XPLMAppendMenuItem(sbh_menu, "Fake CDM", &pref_fake_cdm, 0);
-    XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
-
-    XPLMCommandRef cmdr = XPLMCreateCommand("sbh/toggle", "Toggle Simbrief Hub widget");
-    XPLMRegisterCommandHandler(cmdr, ToggleCmdCb, 0, NULL);
-
-    cmdr = XPLMCreateCommand("sbh/fetch", "Fetch ofp data and show in widget");
-    XPLMRegisterCommandHandler(cmdr, FetchCmdCb, 0, NULL);
+    fake_cdm_item = XPLMAppendMenuItemWithCommand(sbh_menu, "Fake CDM", fake_cmdr);
 
     XPLMCreateFlightLoop_t create_flight_loop = {sizeof(XPLMCreateFlightLoop_t),
                                                  xplm_FlightLoop_Phase_BeforeFlightModel, FlightLoopCb, NULL};
