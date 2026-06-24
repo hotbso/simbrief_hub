@@ -1,0 +1,86 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "win",
+      "displayName": "MSYS2 GCC Release",
+      "binaryDir": "${sourceDir}/build/win",
+      "generator": "Ninja"
+    },
+    {
+      "name": "win-tests",
+      "displayName": "MSYS2 GCC Release (tests enabled)",
+      "inherits": "win",
+      "cacheVariables": {
+        "BUILD_TESTS": true
+      }
+    },
+    {
+      "name": "lx",
+      "displayName": "Linux Native Release",
+      "binaryDir": "${sourceDir}/build/lx",
+      "generator": "Ninja"
+    },
+    {
+      "name": "lx-tests",
+      "displayName": "Linux Native Release (tests enabled)",
+      "inherits": "lx",
+      "cacheVariables": {
+        "BUILD_TESTS": true
+      }
+    },
+    {
+      "name": "mac",
+      "displayName": "macOS Cross Compile",
+      "binaryDir": "${sourceDir}/build/mac",
+      "toolchainFile": "${sourceDir}/toolchain-osxcross.cmake",
+      "generator": "Ninja"
+    },
+    {
+      "name": "mac-tests",
+      "displayName": "macOS Cross Compile (tests enabled)",
+      "inherits": "mac",
+      "cacheVariables": {
+        "BUILD_TESTS": true
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "win",
+      "configurePreset": "win"
+    },
+    {
+      "name": "win-tests",
+      "configurePreset": "win-tests",
+      "targets": [
+        "cdm_test",
+        "ofp_test"
+      ]
+    },
+    {
+      "name": "lx",
+      "configurePreset": "lx"
+    },
+    {
+      "name": "lx-tests",
+      "configurePreset": "lx-tests",
+      "targets": [
+        "cdm_test",
+        "ofp_test"
+      ]
+    },
+    {
+      "name": "mac",
+      "configurePreset": "mac"
+    },
+    {
+      "name": "mac-tests",
+      "configurePreset": "mac-tests",
+      "targets": [
+        "cdm_test",
+        "ofp_test"
+      ]
+    }
+  ]
+}
