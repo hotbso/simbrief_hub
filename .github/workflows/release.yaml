@@ -18,7 +18,7 @@ jobs:
         os: [ubuntu-24.04, macos-14]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Get XPlane SDK + xplib
         shell: bash
@@ -79,7 +79,7 @@ jobs:
             mingw-w64-x86_64-ninja
             git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Get XPlane SDK + xplib
         shell: bash
@@ -115,7 +115,7 @@ jobs:
     needs: [build-linux-macos, build-windows]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: setup crc32 tool
         shell: bash
@@ -151,8 +151,7 @@ jobs:
 
             RELEASE_FOLDER=release/simbrief_hub
             mkdir -p "${RELEASE_FOLDER}"
-            cp -r simbrief_hub/*_x64 "${RELEASE_FOLDER}/"
-            cp -p README.html nlohmann-LICENSE.MIT cdm_cfg.default.json "${RELEASE_FOLDER}/."
+            cp -r simbrief_hub/ "${RELEASE_FOLDER}/"
 
             ls -lR release
 
