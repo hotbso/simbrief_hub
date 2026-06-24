@@ -38,7 +38,7 @@ main(int argc, char **argv)
         exit(1);
     }
 
-    if (!CdmInit("cdm_cfg.default.json")) {
+    if (!CdmInit("simbrief_hub/cdm_cfg.default.json")) {
         LogMsg("CdmInit() failed, bye!");
         exit(1);
     }
