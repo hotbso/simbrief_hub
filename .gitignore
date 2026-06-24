@@ -1,6 +1,7 @@
 # Prerequisites
 build/
 *.d
+*.xpl
 
 # Generated header
 version.h
