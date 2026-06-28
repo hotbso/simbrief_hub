@@ -51,12 +51,22 @@ set(SOURCES
     sbh.cpp
     ofp_get_parse.cpp
     cdm_get_parse.cpp
+    ui.cpp
     ${XPLIB}/http_get.cpp
     ${XPLIB}/log_msg.cpp
-    ${XPLIB}/widget_ctx.cpp
 )
 
-add_library(simbrief_hub SHARED ${SOURCES})
+SET(IMGUI_SRCS
+    ${CMAKE_SOURCE_DIR}/imgui/imgui.cpp
+    ${CMAKE_SOURCE_DIR}/imgui/imgui_draw.cpp
+    ${CMAKE_SOURCE_DIR}/imgui/imgui_widgets.cpp
+    ${CMAKE_SOURCE_DIR}/imgui/imgui_tables.cpp
+    ${CMAKE_SOURCE_DIR}/imgui/misc/cpp/imgui_stdlib.cpp
+    ${CMAKE_SOURCE_DIR}/ImgWindow/ImgWindow.cpp
+    ${CMAKE_SOURCE_DIR}/ImgWindow/ImgFontAtlas.cpp
+)
+
+add_library(simbrief_hub SHARED ${SOURCES} ${IMGUI_SRCS})
 set_target_properties(simbrief_hub PROPERTIES PREFIX "" SUFFIX ".xpl")
 
 # ==============================================================================
@@ -65,7 +75,9 @@ set_target_properties(simbrief_hub PROPERTIES PREFIX "" SUFFIX ".xpl")
 target_include_directories(simbrief_hub PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${XPLIB}
-    ${SDK}/CHeaders/Widgets
+    ${CMAKE_SOURCE_DIR}/imgui
+    ${CMAKE_SOURCE_DIR}/imgui/misc/cpp
+    ${CMAKE_SOURCE_DIR}/ImgWindow
     ${SDK}/CHeaders/XPLM
 )
 
@@ -88,8 +100,8 @@ if(WIN32)
     )
     target_link_libraries(simbrief_hub PRIVATE
         ${SDK}/Libraries/Win/XPLM_64.lib
-        ${SDK}/Libraries/Win/XPWidgets_64.lib
         winhttp
+        opengl32
     )
     install(TARGETS simbrief_hub RUNTIME DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/simbrief_hub/win_x64")
 
@@ -106,9 +118,8 @@ elseif(APPLE)
         -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linkscript.mac
     )
     find_library(XPLM_FW XPLM PATHS "${SDK}/Libraries/Mac" REQUIRED)
-    find_library(XPWidgets_FW XPWidgets PATHS "${SDK}/Libraries/Mac" REQUIRED)
 
-    target_link_libraries(simbrief_hub PRIVATE ${XPLM_FW} ${XPWidgets_FW} curl)
+    target_link_libraries(simbrief_hub PRIVATE ${XPLM_FW} curl "-framework OpenGL")
     install(TARGETS simbrief_hub LIBRARY DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/simbrief_hub/mac_x64")
 
 elseif(UNIX)
@@ -118,7 +129,7 @@ elseif(UNIX)
         -fPIC -fno-stack-protector
     )
     target_link_options(simbrief_hub PRIVATE -rdynamic -nodefaultlibs)
-    target_link_libraries(simbrief_hub PRIVATE curl)
+    target_link_libraries(simbrief_hub PRIVATE curl GL)
     install(TARGETS simbrief_hub LIBRARY DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/simbrief_hub/lin_x64")
 endif()
 

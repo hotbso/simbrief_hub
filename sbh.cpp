@@ -31,18 +31,16 @@
 #include <future>
 #include <chrono>
 
-#include "sbh.h"
-
 #include "XPLMPlugin.h"
 #include "XPLMGraphics.h"
 #include "XPLMDataAccess.h"
 #include "XPLMUtilities.h"
 #include "XPLMProcessing.h"
 #include "XPLMMenus.h"
-#include "XPWidgets.h"
-#include "XPStandardWidgets.h"
 
-#include "widget_ctx.h"
+#include "sbh.h"
+#include "ui.h"
+
 #include "version.h"
 
 const char *log_msg_prefix = "sbh: ";
@@ -52,10 +50,6 @@ static constexpr float kCdmNoPoll = 100000.0f;    // never poll
 static constexpr float kAirtimeForArrival = 300.0f;  // s, airtime > this means arrival after a flight
 
 static XPLMMenuID sbh_menu;
-static XPWidgetID main_widget, display_widget, getofp_btn, status_line;
-static XPWidgetID conf_widget, pilot_id_input, conf_ok_btn;
-
-static WidgetCtx main_widget_ctx, conf_widget_ctx;
 static int fake_cdm_item;
 
 static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, num_engines_dr, eng_running_dr, gear_fnrml_dr;
@@ -65,10 +59,11 @@ static XPLMFlightLoopID flight_loop_id;
 
 static int pref_fake_cdm;
 
-static int error_disabled;
+bool error_disabled;
 
 static std::string xp_dir, base_dir, pref_path;
-static std::string pilot_id, cdm_airport, callsign;
+std::string pilot_id;
+static std::string cdm_airport, callsign;
 static int cdm_seqno;
 static bool fake_xpilot;    // faked by env var XPILOT_CALLSIGN=xxxx
 static bool xpilot_connected;
@@ -80,10 +75,10 @@ static float now, air_time, cdm_next_poll_ts;
 // Everything is synchronously fired by the flightloop so we don't need mutexes
 
 // these variables are owned and written by the main (= flightloop) thread
-static bool ofp_download_active;
-static std::unique_ptr<OfpInfo> ofp_info;
+bool ofp_download_active;
 static bool cdm_download_active;
-static std::unique_ptr<CdmInfo> cdm_info;
+std::unique_ptr<OfpInfo> ofp_info;
+std::unique_ptr<CdmInfo> cdm_info;
 
 // use of this variable is alternate
 // If download_active:
@@ -99,7 +94,7 @@ static std::future<bool> cdm_download_future;
 // forwards
 static void FetchCdm(void);
 
-static void SavePrefs() {
+void SavePrefs() {
     std::ofstream f(pref_path);
     if (!f.is_open()) {
         LogMsg("Can't create '%s'", pref_path.c_str());
@@ -117,28 +112,6 @@ static void LoadPrefs() {
     }
 
     f >> pilot_id >> pref_fake_cdm;
-}
-
-static int ConfWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, [[maybe_unused]] intptr_t param1,
-                        [[maybe_unused]] intptr_t param2) {
-    if (msg == xpMessage_CloseButtonPushed) {
-        conf_widget_ctx.Hide();
-        return 1;
-    }
-
-    if (error_disabled)
-        return 1;
-
-    if ((widget_id == conf_ok_btn) && (msg == xpMsg_PushButtonPressed)) {
-        char buffer[40];
-        XPGetWidgetDescriptor(pilot_id_input, buffer, sizeof(buffer));
-        pilot_id = buffer;
-        SavePrefs();
-        conf_widget_ctx.Hide();
-        return 1;
-    }
-
-    return 0;
 }
 
 // connected to xpilot, engine off, no airtime
@@ -223,22 +196,10 @@ bool OfpCheckAsyncDownload() {
 
         LogMsg("OfpCheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
         if (ofp_info->status != kSuccess) {
-            XPSetWidgetDescriptor(status_line, ofp_info->status.c_str());
             return false;  // no download active
         }
 
-        time_t tg = atol(ofp_info->time_generated.c_str());
-        auto tm = *std::gmtime(&tg);
-
-        char line[200];
-        snprintf(line, sizeof(line), "%s%s %s / OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC",
-                 ofp_info->icao_airline.c_str(), ofp_info->flight_number.c_str(), ofp_info->aircraft_icao.c_str(),
-                 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-
-        XPSetWidgetDescriptor(status_line, line);
-        char buffer[100];
-        snprintf(buffer, sizeof(buffer), "%d", atoi(ofp_info->altitude.c_str()) / 100);
-        ofp_info->altitude = buffer;
+        ofp_info->altitude = std::to_string(atoi(ofp_info->altitude.c_str()) / 100); // -> FL
         cdm_airport = ofp_info->origin;
 
         if (pref_fake_cdm)
@@ -285,7 +246,7 @@ bool CdmCheckAsyncDownload() {
     return false;
 }
 
-static void FetchOfp(void) {
+void FetchOfp(void) {
     if (pilot_id.empty()) {
         LogMsg("pilot_id is not configured!");
         return;
@@ -301,6 +262,9 @@ static void FetchOfp(void) {
 }
 
 static void FetchCdm() {
+    if (error_disabled)
+        return;
+
     if (cdm_download_active) {
         LogMsg("Download is already in progress, request ignored");
         return;
@@ -316,299 +280,39 @@ static void FetchCdm() {
     cdm_download_active = true;
 }
 
-static int FormatRoute(float* bg_color, std::string& route, int right_col, int y) {
-    char* rptr = (char*)route.c_str();
-
-    // break route to this # of chars
-#define ROUTE_BRK 50
-    while (1) {
-        int len = strlen(rptr);
-        if (len <= ROUTE_BRK)
-            break;
-
-        // find last blank < line length
-        char c = rptr[ROUTE_BRK];
-        rptr[ROUTE_BRK] = '\0';
-        char* cptr = strrchr(rptr, ' ');
-        rptr[ROUTE_BRK] = c;
-
-        if (NULL == cptr) {
-            LogMsg("Can't format route!");
-            break;
-        }
-
-        // write that fragment
-        c = *cptr;
-        *cptr = '\0';
-        XPLMDrawString(bg_color, right_col, y, rptr, NULL, xplmFont_Basic);
-        y -= 15;
-        *cptr = c;
-        rptr = cptr + 1;  // behind the blank
-    }
-
-    XPLMDrawString(bg_color, right_col, y, rptr, NULL, xplmFont_Basic);
-    return y;
-}
-
-static int MainWidgetCb(XPWidgetMessage msg, XPWidgetID widget_id, [[maybe_unused]] intptr_t param1,
-                        [[maybe_unused]] intptr_t param2) {
-    if (msg == xpMessage_CloseButtonPushed) {
-        main_widget_ctx.Hide();
-        return 1;
-    }
-
+static void MenuCb([[maybe_unused]] void* menu_ref, [[maybe_unused]] void* item_ref) {
     if (error_disabled)
-        return 1;
-
-    if ((widget_id == getofp_btn) && (msg == xpMsg_PushButtonPressed)) {
-        if (pilot_id.empty())
-            return 1;
-        XPSetWidgetDescriptor(status_line, "Fetching...");
-        FetchOfp();
-    }
-
-    // draw the embedded custom widget
-    if ((widget_id == display_widget) && (xpMsg_Draw == msg)) {
-        if (ofp_info == nullptr)
-            return 1;
-
-        static float label_color[] = {0.0, 0.0, 0.0};
-        static float f_color[] = {0.0, 0.5, 0.3};
-        char str[80];
-        int left, top, right, bottom;
-
-        XPGetWidgetGeometry(display_widget, &left, &top, &right, &bottom);
-        // LogMsg("display_widget start %d %d %d %d", left, top, right, bottom);
-
-        int left_col[2] = {left + 5, left + 180};
-        int right_col[2] = {left_col[0] + 75, left_col[1] + 75};
-        int y = top - 5;
-
-#define DL(COL, TXT) \
-    if (COL == 0)    \
-        y -= 15;     \
-    XPLMDrawString(label_color, left_col[COL], y, TXT, NULL, xplmFont_Proportional)
-
-#define DF(COL, FIELD) XPLMDrawString(f_color, right_col[COL], y, ofp_info->FIELD.c_str(), NULL, xplmFont_Basic)
-
-#define DS(COL, STR) XPLMDrawString(f_color, right_col[COL], y, STR, NULL, xplmFont_Basic)
-
-        DL(0, "Pax:");
-        DF(0, pax_count);
-        DL(0, "Cargo:");
-        DF(0, freight);
-        DL(0, "Fuel:");
-        DF(0, fuel_plan_ramp);
-        y -= 10;
-
-        time_t out_time = atol(ofp_info->est_out.c_str());
-        time_t off_time = atol(ofp_info->est_off.c_str());
-
-        auto out_tm = *std::gmtime(&out_time);
-        auto off_tm = *std::gmtime(&off_time);
-        char out[20], off[20];
-        strftime(out, sizeof(out), "%H:%M", &out_tm);
-        strftime(off, sizeof(off), "%H:%M", &off_tm);
-        std::string tmp_str = std::string("Out: ") + out + "  Off: " + off;
-        DL(0, tmp_str.c_str());
-
-        y -= 20;
-
-        // D(aircraft_icao);
-        DL(0, "Departure:");
-        DS(0, (ofp_info->origin + "/" + ofp_info->origin_rwy).c_str());
-        DL(0, "Destination:");
-        DS(0, (ofp_info->destination + "/" + ofp_info->destination_rwy).c_str());
-        DL(0, "Route:");
-
-        y = FormatRoute(f_color, ofp_info->route, right_col[0], y);
-
-        DL(0, "Trip time");
-        if (ofp_info->est_time_enroute[0]) {
-            int ttmin = (atoi(ofp_info->est_time_enroute.c_str()) + 30) / 60;
-            snprintf(str, sizeof(str), "%02d%02d", ttmin / 60, ttmin % 60);
-            DS(0, str);
-        }
-
-        int tropopause = atoi(ofp_info->tropopause.c_str());
-        snprintf(str, sizeof(str), "%d", (tropopause + 500) / 1000 * 1000);
-        DL(0, "CI:");
-        DF(0, ci);
-        DL(1, "TROPO:");
-        DS(1, str);
-
-        int isa_dev = atoi(ofp_info->isa_dev.c_str());
-        if (isa_dev < 0)
-            snprintf(str, sizeof(str), "M%03d", -isa_dev);
-        else
-            snprintf(str, sizeof(str), "P%03d", isa_dev);
-
-        DL(0, "CRZ FL:");
-        DF(0, altitude);
-        DL(1, "ISA:");
-        DS(1, str);
-
-        int wind_component = atoi(ofp_info->wind_component.c_str());
-        if (wind_component < 0)
-            snprintf(str, sizeof(str), "M%03d", -wind_component);
-        else
-            snprintf(str, sizeof(str), "P%03d", wind_component);
-        DL(0, "WC:");
-        DS(0, str);
-
-        y -= 5;
-
-        DL(0, "Alternate:");
-        DF(0, alternate);
-        DL(0, "Alt Route:");
-        y = FormatRoute(f_color, ofp_info->alt_route, right_col[0], y);
-        y -= 5;
-        DL(0, "DX Remarks:");
-        DF(0, dx_rmk);
-
-#undef DF
-#define DF(COL, FIELD) XPLMDrawString(f_color, right_col[COL], y, cdm_info->FIELD.c_str(), NULL, xplmFont_Basic)
-
-        if (cdm_info != nullptr) {
-            y -= 10;
-            DL(0, "CDM Status:");
-            DF(0, status);
-            DL(0, "Url:");
-            DF(0, url);
-            if (cdm_info->status == kSuccess) {
-                y -= 2;
-                DL(0, "TOBT:");
-                DF(0, tobt);
-                DL(1, "TSAT:");
-                DF(1, tsat);
-                DL(0, "CTOT:");
-                DF(0, ctot);
-                DL(0, "Runway:");
-                DF(0, runway);
-                DL(1, "SID:");
-                DF(1, sid);
-            }
-        }
-
-        y -= 15;
-
-        int pleft, ptop, pright, pbottom;
-        XPGetWidgetGeometry(main_widget, &pleft, &ptop, &pright, &pbottom);
-
-        if (y != pbottom) {
-            XPSetWidgetGeometry(main_widget, pleft, ptop, pright, y);
-            main_widget_ctx.h = ptop - y;
-
-            // widgets are internally managed relative to the left lower corner.
-            // Hence if we resize a container we must shift all childs accordingly.
-            int delta = y - pbottom;
-            int nchild = XPCountChildWidgets(main_widget);
-            for (int i = 0; i < nchild; i++) {
-                int cleft, ctop, cright, cbottom;
-                XPWidgetID cw = XPGetNthChildWidget(main_widget, i);
-                XPGetWidgetGeometry(cw, &cleft, &ctop, &cright, &cbottom);
-                XPSetWidgetGeometry(cw, cleft, ctop - delta, cright, cbottom - delta);
-            }
-        }
-
-        return 1;
-    }
-
-    return 0;
-}
-
-static void CreateWidget() {
-    if (main_widget)
         return;
 
-    int left = 200;
-    int top = 800;
-    int width = 450;
-    int height = 300;
-
-    main_widget = XPCreateWidget(left, top, left + width, top - height, 0, "Simbrief Hub " VERSION, 1, NULL,
-                                 xpWidgetClass_MainWindow);
-    main_widget_ctx.Set(main_widget, left, top, width, height);
-
-    XPSetWidgetProperty(main_widget, xpProperty_MainWindowHasCloseBoxes, 1);
-    XPAddWidgetCallback(main_widget, MainWidgetCb);
-    left += 5;
-    top -= 25;
-
-    int left1 = left + 10;
-    getofp_btn = XPCreateWidget(left1, top, left1 + 60, top - 30, 1, "Fetch OFP", 0, main_widget, xpWidgetClass_Button);
-    XPAddWidgetCallback(getofp_btn, MainWidgetCb);
-
-    top -= 25;
-    status_line = XPCreateWidget(left1, top, left + width - 10, top - 20, 1, "", 0, main_widget, xpWidgetClass_Caption);
-
-    top -= 20;
-    display_widget =
-        XPCreateCustomWidget(left + 10, top, left + width - 20, top - height + 10, 1, "", 0, main_widget, MainWidgetCb);
-}
-
-static void MenuCb([[maybe_unused]] void* menu_ref, void* item_ref) {
-    // create gui
-    if (item_ref == &main_widget) {
-        main_widget_ctx.Show();
-        return;
-    }
-
-    if (item_ref == &conf_widget) {
-        if (NULL == conf_widget) {
-            int left = 250;
-            int top = 780;
-            int width = 150;
-            int height = 100;
-
-            conf_widget = XPCreateWidget(left, top, left + width, top - height, 0, "SBH / Configuration", 1, NULL,
-                                         xpWidgetClass_MainWindow);
-            conf_widget_ctx.Set(conf_widget, left, top, width, height);
-
-            XPSetWidgetProperty(conf_widget, xpProperty_MainWindowHasCloseBoxes, 1);
-            XPAddWidgetCallback(conf_widget, ConfWidgetCb);
-            left += 5;
-            top -= 25;
-            XPCreateWidget(left, top, left + width - 2 * 5, top - 15, 1, "Pilot Id", 0, conf_widget,
-                           xpWidgetClass_Caption);
-
-            int left1 = left + 60;
-            pilot_id_input = XPCreateWidget(left1, top, left1 + 50, top - 15, 1, pilot_id.c_str(), 0, conf_widget,
-                                            xpWidgetClass_TextField);
-            XPSetWidgetProperty(pilot_id_input, xpProperty_TextFieldType, xpTextEntryField);
-            XPSetWidgetProperty(pilot_id_input, xpProperty_MaxCharacters, 20);
-
-            top -= 30;
-            conf_ok_btn =
-                XPCreateWidget(left + 10, top, left + 140, top - 30, 1, "OK", 0, conf_widget, xpWidgetClass_Button);
-            XPAddWidgetCallback(conf_ok_btn, ConfWidgetCb);
-        }
-
-        XPSetWidgetDescriptor(pilot_id_input, pilot_id.c_str());
-        conf_widget_ctx.Show();
-        return;
+    if (ui == nullptr) {
+        LogMsg("Creating UI");
+        CreateUi();
     }
 }
 
 // call back for toggle cmd
 static int ToggleUiCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
-    if (xplm_CommandBegin != phase)
+    if (error_disabled || xplm_CommandBegin != phase)
         return 0;
 
     LogMsg("toggle cmd called");
 
-    if (XPIsWidgetVisible(main_widget_ctx.widget)) {
-        main_widget_ctx.Hide();
-        return 0;
+    if (ui)
+        ui = nullptr;
+    else {
+        LogMsg("Creating UI");
+        CreateUi();
     }
 
-    main_widget_ctx.Show();
     return 0;
 }
 
 // flight loop for delayed actions
 static float FlightLoopCb(float inElapsedSinceLastCall, [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop,
                           [[maybe_unused]] int inCounter, [[maybe_unused]] void* inRefcon) {
+    if (error_disabled)
+        return 0.0f;
+
     now = XPLMGetDataf(total_running_time_sec_dr);
     OfpCheckAsyncDownload();
     CdmCheckAsyncDownload();
@@ -716,6 +420,8 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
 
     LoadPrefs();
 
+    ImgWindowIni();
+
     // map standard datarefs
     acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
     gear_fnrml_dr = XPLMFindDataRef("sim/flightmodel/forces/fnrml_gear");
@@ -762,8 +468,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     XPLMMenuID menu = XPLMFindPluginsMenu();
     int sub_menu = XPLMAppendMenuItem(menu, "Simbrief Hub", NULL, 1);
     sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
-    XPLMAppendMenuItem(sbh_menu, "Configure", &conf_widget, 0);
-    XPLMAppendMenuItem(sbh_menu, "Show widget", &main_widget, 0);
+    XPLMAppendMenuItem(sbh_menu, "Show widget", NULL, 0);
     fake_cdm_item = XPLMAppendMenuItemWithCommand(sbh_menu, "Fake CDM", fake_cmdr);
 
     XPLMCreateFlightLoop_t create_flight_loop = {sizeof(XPLMCreateFlightLoop_t),
@@ -823,11 +528,6 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     XPLMRegisterDataAccessor("sbh/cdm/seqno", xplmType_Int, 0, CdmIntAcc, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, (void*)offsetof(CdmInfo, seqno), NULL);
 
-    CreateWidget();
-    if (pilot_id.empty()) {
-        XPSetWidgetDescriptor(status_line, "Pilot ID is not configured!");
-    }
-
     const char* cs = getenv("XPILOT_CALLSIGN");
     if (cs) {
         fake_xpilot = true;
@@ -847,6 +547,9 @@ PLUGIN_API void XPluginStop(void) {
         LogMsg("... waiting for async download to finish");
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }
+
+    ui = nullptr;
+    ImgWindowFini();
 }
 
 PLUGIN_API void XPluginDisable(void) {
@@ -854,6 +557,9 @@ PLUGIN_API void XPluginDisable(void) {
 }
 
 PLUGIN_API int XPluginEnable(void) {
+    if (error_disabled)
+        return 0;
+
     return 1;
 }
 

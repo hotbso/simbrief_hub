@@ -26,7 +26,7 @@
 #include "sbh.h"
 
 const char *log_msg_prefix = "cdm_test: ";
-static std::unique_ptr<CdmInfo> cdm_info;
+std::unique_ptr<CdmInfo> cdm_info;
 
 static std::string callsign{"EWG74A"};
 

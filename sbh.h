@@ -82,6 +82,15 @@ struct CdmInfo
 };
 #undef F
 
+extern bool error_disabled;
+extern bool ofp_download_active;
+
+extern std::string pilot_id;
+extern std::unique_ptr<OfpInfo> ofp_info;
+extern std::unique_ptr<CdmInfo> cdm_info;
+
+extern void FetchOfp(void);
 extern bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info);
 extern bool CdmInit(const std::string& cfg_path);
 extern bool CdmGetParse(const std::string& icao, const std::string& callsign, std::unique_ptr<CdmInfo>& Cdm_info);
+extern void SavePrefs();
