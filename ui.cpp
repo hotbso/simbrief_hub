@@ -151,9 +151,10 @@ void Ui::BuildInterface() {
             time_t tg = atol(ofp_info->time_generated.c_str());
             auto tm = *std::gmtime(&tg);
 
-            status_line_ = std::format("{}{} {} / OFP generated at {:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
+            status_line_ = std::format("{}{} {} / OFP generated at {:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC, seqno: {}",
                                       ofp_info->icao_airline, ofp_info->flight_number, ofp_info->aircraft_icao,
-                                      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+                                      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+                                      ofp_info->seqno);
 
             time_t out_time = atol(ofp_info->est_out.c_str());
             time_t off_time = atol(ofp_info->est_off.c_str());
@@ -195,6 +196,13 @@ void Ui::BuildInterface() {
     }
 
     ImGui::Spacing();
+
+    if (ofp_download_active) {
+        ImGui::Spacing();
+        ImGui::TextUnformatted("OFP download in progress ...");
+        return;
+    }
+
     ImGui::Separator();
     if (ImGui::Button("Fetch OFP")) {
         LogMsg("Fetch OFP button pressed");
@@ -203,12 +211,6 @@ void Ui::BuildInterface() {
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextUnformatted(status_line_.c_str());
-
-    if (ofp_download_active) {
-        ImGui::Spacing();
-        ImGui::TextUnformatted("OFP download in progress ...");
-        return;
-    }
 
     //--------------------------------------------------
     ImGui::Spacing();
