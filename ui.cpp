@@ -50,7 +50,7 @@ std::unique_ptr<ImgWindow> ui;
 class Ui : public ImgWindow {
     XPLMFlightLoopID flt_id_ = nullptr;
     int ofp_seqno_ = 0;
-    std::string out_off_, tropo_, trip_time_, status_line_;
+    std::string out_, off_, tropo_, trip_time_, status_line_;
     ImVec4 field_color_ = ImColor(0.0f, 0.5f, 0.3f, 1.0f);
 
     // Main function: creates the window's UI
@@ -85,28 +85,6 @@ void ImgWindowIni() {
         LogMsg("Failed to load font DejaVuSans from file, falling back to default font");
     }
 
-#if 0
-    // Now we merge some icons from the OpenFontsIcons font into the above font
-    // (see `imgui/docs/FONTS.txt`)
-    ImFontConfig config;
-    config.MergeMode = true;
-
-    // We only read very selectively the individual glyphs we are actually using
-    // to safe on texture space
-    static ImVector<ImWchar> icon_ranges;
-    ImFontGlyphRangesBuilder builder;
-    // Add all icons that are actually used (they concatenate into one string)
-    builder.AddText((const char*)ICON_FA_CHECK);
-    builder.BuildRanges(&icon_ranges);
-
-    // Merge the icon font with the text font
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data,
-                                                          fa_solid_900_compressed_size,
-                                                          kFontSize,
-                                                          &config,
-                                                          icon_ranges.Data);
-
-#endif
     LogMsg("Imgui Window initialized");
 }
 
@@ -164,7 +142,8 @@ void Ui::BuildInterface() {
             char out[20], off[20];
             strftime(out, sizeof(out), "%H:%M", &out_tm);
             strftime(off, sizeof(off), "%H:%M", &off_tm);
-            out_off_ = std::string("Out: ") + out + "  Off: " + off;
+            out_ = out;
+            off_ = off;
 
             int tropopause = atoi(ofp_info->tropopause.c_str());
             tropopause = (tropopause + 500) / 1000 * 1000;  // round to nearest 1000
@@ -252,7 +231,7 @@ void Ui::BuildInterface() {
                 ImGui::TextColored(field_color_, "P%03d", ivalue);
         };
 
-        auto FormatRoute = [&](std::string& route, int right_col) {
+        auto FormatRoute = [&](std::string_view route, float right_col) {
             ImGui::SameLine();
             if (route.empty()) {
                 ImGui::SetCursorPosX(right_col);
@@ -260,37 +239,23 @@ void Ui::BuildInterface() {
                 return;
             }
 
-            char* rptr = (char*)route.c_str();
-
-            // break route to this # of chars
-            static constexpr int kRouteBrk = 50;
-            while (1) {
-                int len = strlen(rptr);
-                if (len <= kRouteBrk)
-                    break;
-
-                // find last blank < line length
-                char c = rptr[kRouteBrk];
-                rptr[kRouteBrk] = '\0';
-                char* cptr = strrchr(rptr, ' ');
-                rptr[kRouteBrk] = c;
-
-                if (NULL == cptr) {
+            static constexpr size_t kRouteBrk = 50;
+            while (route.length() > kRouteBrk) {
+                size_t space_pos = route.find_last_of(' ', kRouteBrk);
+                if (space_pos == std::string_view::npos) {
                     LogMsg("Can't format route!");
                     break;
                 }
 
-                // write that fragment
-                c = *cptr;
-                *cptr = '\0';
+                auto fragment = route.substr(0, space_pos);
                 ImGui::SetCursorPosX(right_col);
-                ImGui::TextColored(field_color_, "%s", rptr);
-                *cptr = c;
-                rptr = cptr + 1;  // behind the blank
+                ImGui::TextColored(field_color_, "%.*s", static_cast<int>(fragment.length()), fragment.data());
+
+                route.remove_prefix(space_pos + 1);
             }
 
             ImGui::SetCursorPosX(right_col);
-            ImGui::TextColored(field_color_, "%s", rptr);
+            ImGui::TextColored(field_color_, "%.*s", static_cast<int>(route.length()), route.data());
         };
 
         DF(0, "Pax:", ofp_info->pax_count);
@@ -298,7 +263,8 @@ void Ui::BuildInterface() {
         DF(0, "Fuel:", ofp_info->fuel_plan_ramp);
 
         ImGui::Spacing();
-        ImGui::TextUnformatted(out_off_.c_str());
+        DF(0, "Out:", out_);
+        DF(1, "Off:", off_);
         ImGui::Spacing();
         ImGui::Spacing();
 
