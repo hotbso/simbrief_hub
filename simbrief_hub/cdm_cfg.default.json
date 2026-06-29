@@ -8,16 +8,17 @@ Protocols:
 - rpuig: legacy protocol, https://aman.vatsimspain.es
 - vacdm_v1: legacy protocol used by France and China, https://cdm.vatsim.fr, https://vacdm.vatprc.net
 
-During the migration phase viff should act as catch-all for airports not served by the legacy protocols and be last.
+With vIFF getting more and more traction we list it first.
+If a flight is present in vIFF we take it, otherwise we fall back to the legacy protocols.
 
 !*&# -------- valid json enforced below this line -------- #&*!
 {
     "servers": [
         {
-            "name": "Spain",
-            "protocol": "rpuig",
-            "url": "https://aman.vatsimspain.es",
-            "enabled": false
+            "name": "vIFF",
+            "protocol": "viff",
+            "url": "https://viff-system.network",
+            "enabled": true
         },
         {
             "name": "France",
@@ -29,12 +30,6 @@ During the migration phase viff should act as catch-all for airports not served 
             "name": "China",
             "protocol": "vacdm_v1",
             "url": "https://vacdm.vatprc.net",
-            "enabled": true
-        },
-        {
-            "name": "vIFF",
-            "protocol": "viff",
-            "url": "https://viff-system.network",
             "enabled": true
         }
     ]

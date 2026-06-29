@@ -32,9 +32,9 @@ using json = nlohmann::json;
 #include "sbh.h"
 #include "http_get.h"
 
-// https://github.com/rpuig2001/CDM
 // https://viff-system.network/docs
-// https://github.com/vACDM/vacdm-server
+// deprecated: https://github.com/rpuig2001/CDM
+// deprecated: https://github.com/vACDM/vacdm-server
 
 static constexpr int kMaxRetries = 3;
 
@@ -286,15 +286,42 @@ bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string
         const auto& cdm_obj = flight_obj.at("cdmData").get<json>();
         LogMsgRaw(cdm_obj.dump(4));
 
+        //{
+        //    "_id": "6a423630aa4600275b0b37fa",
+        //    "asrt": "",
+        //    "confirmed": true,    --> by pilot in vats.im/vdgs
+        //    "ctot": "",
+        //    "depInfo": "",
+        //    "reason": "",
+        //    "reqAsrt": "",
+        //    "reqTobt": "0935",    --> by pilot
+        //    "reqTobtType": "PILOT",
+        //    "tobt": "",           --> by ATC
+        //    "tsat": "",           --> by ATC
+        //    "ttot": ""
+        //}
+
         cdm_info.tobt = cdm_obj.at("tobt").get<std::string>().substr(0, 4);
         cdm_info.tsat = cdm_obj.at("tsat").get<std::string>().substr(0, 4);
 
         // "depInfo": "27L/TOLTA1F"
         std::string dep_info = cdm_obj.at("depInfo").get<std::string>();
+
+        // That's a bit tricky here. Once connected to VATSIM a flight is automatically entered into vIFF regardless
+        // whether the airport is actively managed or not. If the user confirmed the TOBT in vats.im/vdgs we know that
+        // other cdm servers won't return data and we return 'true' to indicate that the flight is known and other
+        // servers should not be polled.
+        // That's particularly important in the transtion phase where legacy servers are more often down than up.
+
         if (cdm_info.tobt.empty() && cdm_info.tsat.empty() && dep_info.empty()) {
-            cdm_info.status = "Empty CDM data";
-            LogMsg("CDM data for flight '%s' on vIFF server'%s' found but is empty", callsign.c_str(), name().c_str());
-            return false;
+            bool res = false;
+            if (cdm_obj.at("confirmed").get<bool>()) {
+                cdm_info.status = "CDM data confirmed by pilot but not yet available";
+                res = true;
+            } else
+                cdm_info.status = "CDM data not available";
+            LogMsg("CDM data for flight '%s' on vIFF server found but is empty", callsign.c_str());
+            return res;
         }
 
         auto i = dep_info.find("/");
