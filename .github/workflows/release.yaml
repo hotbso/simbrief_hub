@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         # use oldest possible ubuntu version in order to avoid compatibility errors with libc
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-15]
       fail-fast: false
     steps:
       - uses: actions/checkout@v6
@@ -31,7 +31,7 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-gnutls-dev gcc-14 g++-14
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-gnutls-dev gcc-14 g++-14 libgl-dev libopengl-dev libopengl0
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -49,7 +49,7 @@ jobs:
             export CC=gcc-14
             export CXX=g++-14
           elif [ "$RUNNER_OS" = "macOS" ]; then
-            CMAKE_EXTRA_ARGS='-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0'
+            CMAKE_EXTRA_ARGS='-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64'
           fi
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTS=OFF \

@@ -107,7 +107,7 @@ if(WIN32)
 
 elseif(APPLE)
     set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Universal binary")
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "macOS deployment target")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "macOS deployment target")
 
     target_compile_definitions(simbrief_hub PRIVATE APL=1)
     target_compile_options(simbrief_hub PRIVATE
