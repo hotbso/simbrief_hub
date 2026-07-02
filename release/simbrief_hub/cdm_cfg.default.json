@@ -1,0 +1,36 @@
+Order matters!
+
+Most European airports are now served by vIFF.
+Check https://viff-system.network/docs
+
+Protocols:
+- viff: vIFF, https://viff-system.network
+- rpuig: legacy protocol, https://aman.vatsimspain.es
+- vacdm_v1: legacy protocol used by France and China, https://cdm.vatsim.fr, https://vacdm.vatprc.net
+
+With vIFF getting more and more traction we list it first.
+If a flight is present in vIFF we take it, otherwise we fall back to the legacy protocols.
+
+!*&# -------- valid json enforced below this line -------- #&*!
+{
+    "servers": [
+        {
+            "name": "vIFF",
+            "protocol": "viff",
+            "url": "https://viff-system.network",
+            "enabled": true
+        },
+        {
+            "name": "France",
+            "protocol": "vacdm_v1",
+            "url": "https://cdm.vatsim.fr",
+            "enabled": true
+        },
+        {
+            "name": "China",
+            "protocol": "vacdm_v1",
+            "url": "https://vacdm.vatprc.net",
+            "enabled": true
+        }
+    ]
+}
