@@ -4,6 +4,7 @@
  * Integration for dear imgui into X-Plane.
  *
  * Copyright (C) 2018,2020 Christopher Collins
+ * Copyright (C) 2026 Holger Teutsch
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -32,10 +33,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef IMGWINDOW_H
-#define IMGWINDOW_H
-
-#include "SystemGL.h"
+#pragma once
 
 #include <climits>
 #include <string>
@@ -389,5 +387,3 @@ private:
         operator bool() const { return wnd || left || top || right || bottom; }
     } dragWhat;
 };
-
-#endif // #ifndef IMGWINDOW_H

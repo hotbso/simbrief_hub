@@ -39,12 +39,13 @@
 #include "log_msg.h"
 #include "version.h"
 
-static constexpr int kWinWidth = 440;
-static constexpr int kWinHeight = 450;
+static constexpr int kWinWidth = 460;
+static constexpr int kWinHeight = 460;
 static constexpr int kWinPad = 75;
-static constexpr float kFontSize = 12.0f;
+static constexpr float kFontSize = 13.0f;
 
 std::unique_ptr<ImgWindow> ui;
+int ui_left = -1, ui_top, ui_right, ui_bottom;  // -1 = not loaded from prefs
 
 // Our own class defining the UI
 class Ui : public ImgWindow {
@@ -66,14 +67,19 @@ class Ui : public ImgWindow {
 };
 
 void CreateUi() {
-    int sc_left, sc_top;
-    XPLMGetScreenBoundsGlobal(&sc_left, &sc_top, nullptr, nullptr);
+    if (ui_left == -1) {
+        LogMsg("Creating UI window with default geometry");
+        int sc_left, sc_top;
+        XPLMGetScreenBoundsGlobal(&sc_left, &sc_top, nullptr, nullptr);
 
-    int left = sc_left + kWinPad;
-    int right = left + kWinWidth;
-    int top = sc_top - kWinPad;
-    int bottom = top - kWinHeight;
-    ui = std::make_unique<Ui>(left, top, right, bottom);
+        ui_left = sc_left + kWinPad;
+        ui_right = ui_left + kWinWidth;
+        ui_top = sc_top - kWinPad;
+        ui_bottom = ui_top - kWinHeight;
+    } else
+        LogMsg("Creating UI window with geometry %d,%d,%d,%d", ui_left, ui_top, ui_right, ui_bottom);
+
+    ui = std::make_unique<Ui>(ui_left, ui_top, ui_right, ui_bottom);
 }
 
 void ImgWindowIni() {
@@ -115,6 +121,7 @@ Ui::Ui(int left, int top, int right, int bot)
 }
 
 Ui::~Ui() {
+    GetWindowGeometry(ui_left, ui_top, ui_right, ui_bottom);  // save geometry for next time
     if (flt_id_)
         XPLMDestroyFlightLoop(flt_id_);
 }
@@ -127,7 +134,7 @@ void Ui::BuildInterface() {
             status_line_ = ofp_info->status;
         } else {
             time_t tg = atol(ofp_info->time_generated.c_str());
-            auto tm = *std::gmtime(&tg);
+            auto tm = *gmtime(&tg);
 
             status_line_ = std::format("{}{} {} / OFP generated at {:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC, seqno: {}",
                                       ofp_info->icao_airline, ofp_info->flight_number, ofp_info->aircraft_icao,
@@ -137,8 +144,8 @@ void Ui::BuildInterface() {
             time_t out_time = atol(ofp_info->est_out.c_str());
             time_t off_time = atol(ofp_info->est_off.c_str());
 
-            auto out_tm = *std::gmtime(&out_time);
-            auto off_tm = *std::gmtime(&off_time);
+            auto out_tm = *gmtime(&out_time);
+            auto off_tm = *gmtime(&off_time);
             char out[20], off[20];
             strftime(out, sizeof(out), "%H:%M", &out_tm);
             strftime(off, sizeof(off), "%H:%M", &off_tm);

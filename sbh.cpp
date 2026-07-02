@@ -30,6 +30,7 @@
 #include <memory>
 #include <future>
 #include <chrono>
+#include <thread>
 
 #include "XPLMPlugin.h"
 #include "XPLMGraphics.h"
@@ -101,7 +102,7 @@ void SavePrefs() {
         return;
     }
 
-    f << pilot_id << " " << pref_fake_cdm << "\n";
+    f << std::format("{} {} {} {} {} {}\n", pilot_id, pref_fake_cdm, ui_left, ui_top, ui_right, ui_bottom);
 }
 
 static void LoadPrefs() {
@@ -111,7 +112,7 @@ static void LoadPrefs() {
         return;
     }
 
-    f >> pilot_id >> pref_fake_cdm;
+    f >> pilot_id >> pref_fake_cdm >> ui_left >> ui_top >> ui_right >> ui_bottom;
 }
 
 // connected to xpilot, engine off, no airtime
@@ -165,8 +166,8 @@ static void FakeCdm() {
     time_t out_time = atol(ofp_info->est_out.c_str());
     time_t off_time = atol(ofp_info->est_off.c_str());
 
-    auto out_tm = *std::gmtime(&out_time);
-    auto off_tm = *std::gmtime(&off_time);
+    auto out_tm = *gmtime(&out_time);
+    auto off_tm = *gmtime(&off_time);
     char out[20], off[20];
     strftime(out, sizeof(out), "%H%M", &out_tm);
     strftime(off, sizeof(off), "%H%M", &off_tm);
