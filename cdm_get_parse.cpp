@@ -132,6 +132,8 @@ void CdmInfo::Dump() const {
     if (status == kSuccess) {
         L(tobt);
         L(tsat);
+        L(ctot);
+        L(ttot);
         L(runway);
         L(sid);
     }
@@ -303,6 +305,8 @@ bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string
 
         cdm_info.tobt = cdm_obj.at("tobt").get<std::string>().substr(0, 4);
         cdm_info.tsat = cdm_obj.at("tsat").get<std::string>().substr(0, 4);
+        cdm_info.ctot = cdm_obj.at("ctot").get<std::string>().substr(0, 4);
+        cdm_info.ttot = cdm_obj.at("ttot").get<std::string>().substr(0, 4);
 
         // "depInfo": "27L/TOLTA1F"
         std::string dep_info = cdm_obj.at("depInfo").get<std::string>();

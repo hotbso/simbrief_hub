@@ -281,16 +281,6 @@ static void FetchCdm() {
     cdm_download_active = true;
 }
 
-static void MenuCb([[maybe_unused]] void* menu_ref, [[maybe_unused]] void* item_ref) {
-    if (error_disabled)
-        return;
-
-    if (ui == nullptr) {
-        LogMsg("Creating UI");
-        CreateUi();
-    }
-}
-
 // call back for toggle cmd
 static int ToggleUiCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase phase, [[maybe_unused]] void* ref) {
     if (error_disabled || xplm_CommandBegin != phase)
@@ -298,7 +288,7 @@ static int ToggleUiCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase 
 
     LogMsg("toggle cmd called");
 
-    if (ui)
+    if (ui && ui->GetVisible())
         ui = nullptr;
     else {
         LogMsg("Creating UI");
@@ -308,11 +298,19 @@ static int ToggleUiCmdCb([[maybe_unused]] XPLMCommandRef cmdr, XPLMCommandPhase 
     return 0;
 }
 
+static void MenuCb([[maybe_unused]] void* menu_ref, [[maybe_unused]] void* item_ref) {
+    ToggleUiCmdCb(nullptr, xplm_CommandBegin, nullptr);
+}
+
 // flight loop for delayed actions
 static float FlightLoopCb(float inElapsedSinceLastCall, [[maybe_unused]] float inElapsedTimeSinceLastFlightLoop,
                           [[maybe_unused]] int inCounter, [[maybe_unused]] void* inRefcon) {
     if (error_disabled)
         return 0.0f;
+
+    // poor man's window manager functionality: if the window is not visible, we don't need to keep it around
+    if (ui && !ui->GetVisible())
+        ui = nullptr;
 
     now = XPLMGetDataf(total_running_time_sec_dr);
     OfpCheckAsyncDownload();
@@ -471,6 +469,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     sbh_menu = XPLMCreateMenu("Simbrief Hub", menu, sub_menu, MenuCb, NULL);
     XPLMAppendMenuItem(sbh_menu, "Show widget", NULL, 0);
     fake_cdm_item = XPLMAppendMenuItemWithCommand(sbh_menu, "Fake CDM", fake_cmdr);
+    XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
 
     XPLMCreateFlightLoop_t create_flight_loop = {sizeof(XPLMCreateFlightLoop_t),
                                                  xplm_FlightLoop_Phase_BeforeFlightModel, FlightLoopCb, NULL};
@@ -522,6 +521,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     CDM_DATA_DREF(status);
     CDM_DATA_DREF(tobt);
     CDM_DATA_DREF(tsat);
+    CDM_DATA_DREF(ttot);
     CDM_DATA_DREF(ctot);
     CDM_DATA_DREF(runway);
     CDM_DATA_DREF(sid);

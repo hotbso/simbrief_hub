@@ -308,6 +308,7 @@ void Ui::BuildInterface() {
                 DF(0, "TOBT:", cdm_info->tobt);
                 DF(1, "TSAT:", cdm_info->tsat);
                 DF(0, "CTOT:", cdm_info->ctot);
+                DF(1, "TTOT:", cdm_info->ttot);
                 DF(0, "Runway:", cdm_info->runway);
                 DF(1, "SID:", cdm_info->sid);
             }

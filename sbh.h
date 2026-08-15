@@ -75,6 +75,7 @@ struct CdmInfo
     F(status);
     F(tobt);
     F(tsat);
+    F(ttot);
     F(ctot);
     F(runway);
     F(sid);
