@@ -41,6 +41,7 @@
 
 #include "sbh.h"
 #include "ui.h"
+#include "http_get.h"
 
 #include "version.h"
 
@@ -417,6 +418,11 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
         return 0;
     }
 
+    if (!HttpGetInitialize()) {
+        LogMsg("HttpGetInitialize() failed");
+        return 0;
+    }
+
     LoadPrefs();
 
     ImgWindowIni();
@@ -551,6 +557,7 @@ PLUGIN_API void XPluginStop(void) {
 
     ui = nullptr;
     ImgWindowFini();
+    HttpGetFinalize();
 }
 
 PLUGIN_API void XPluginDisable(void) {

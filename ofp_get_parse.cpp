@@ -213,6 +213,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
+    HttpGetInitialize();
     const std::string pilot_id = argv[1];
     std::unique_ptr<OfpInfo> ofp_info;
     if (!OfpGetParse(pilot_id, ofp_info)) {
@@ -230,6 +231,7 @@ int main(int argc, char** argv) {
              tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     LogMsg("'%s'", line);
 
+    HttpGetFinalize();
     exit(0);
 }
 #endif

@@ -24,6 +24,7 @@
 #include <iostream>
 
 #include "sbh.h"
+#include "http_get.h"
 
 const char *log_msg_prefix = "cdm_test: ";
 std::unique_ptr<CdmInfo> cdm_info;
@@ -31,8 +32,9 @@ std::unique_ptr<CdmInfo> cdm_info;
 static std::string callsign{"EWG74A"};
 
 int
-main(int argc, char **argv)
-{
+main(int argc, char **argv) {
+    HttpGetInitialize();
+
     if (argc < 3) {
         LogMsg("missing arguments: airport callsign");
         exit(1);
@@ -59,5 +61,7 @@ main(int argc, char **argv)
         if (cdm_info != nullptr)
             cdm_info->Dump();
     }
+
+    HttpGetFinalize();
     return 0;
 }
