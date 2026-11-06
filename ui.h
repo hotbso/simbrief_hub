@@ -22,15 +22,17 @@
 #pragma once
 
 #include <memory>
+#include "imgui.h"
 #include "ImgWindow.h"
-
-// Configure and Cleanup
-extern void ImgWindowIni();
-extern void ImgWindowFini();
 
 extern void CreateUi();
 
 // current window geometry in screen coordinates
 extern int ui_left, ui_top, ui_right, ui_bottom;
+
+// Load all fonts used by the UI and the Airport Editor into the shared font atlas of ImgWindow.
+// This must be called after ImgWindow::Initialize() and before any UI window is created.
+extern void UiLoadFonts();
+extern void CreateUi();
 
 extern std::unique_ptr<ImgWindow> ui;

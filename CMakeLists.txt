@@ -58,7 +58,6 @@ SET(IMGUI_SRCS
     ${CMAKE_SOURCE_DIR}/imgui/imgui_tables.cpp
     ${CMAKE_SOURCE_DIR}/imgui/misc/cpp/imgui_stdlib.cpp
     ${CMAKE_SOURCE_DIR}/ImgWindow/ImgWindow.cpp
-    ${CMAKE_SOURCE_DIR}/ImgWindow/ImgFontAtlas.cpp
 )
 
 add_library(simbrief_hub SHARED ${SOURCES} ${IMGUI_SRCS})
@@ -76,7 +75,7 @@ target_include_directories(simbrief_hub PRIVATE
 )
 
 target_compile_definitions(simbrief_hub PRIVATE
-    XPLM200 XPLM210 XPLM300 XPLM301
+    XPLM200 XPLM210 XPLM300 XPLM301 XPLM400 XPLM410 XPLM420 XPLM430 XPLM440
 )
 
 target_compile_options(simbrief_hub PRIVATE -O3)
@@ -113,7 +112,7 @@ elseif(APPLE)
     )
     find_library(XPLM_FW XPLM PATHS "${SDK}/Libraries/Mac" REQUIRED)
 
-    target_link_libraries(simbrief_hub PRIVATE ${XPLM_FW} curl "-framework OpenGL")
+    target_link_libraries(simbrief_hub PRIVATE ${XPLM_FW} curl)
     install(TARGETS simbrief_hub LIBRARY DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/simbrief_hub/mac_x64")
 
 elseif(UNIX)
@@ -123,7 +122,7 @@ elseif(UNIX)
         -fPIC -fno-stack-protector
     )
     target_link_options(simbrief_hub PRIVATE -rdynamic -nodefaultlibs)
-    target_link_libraries(simbrief_hub PRIVATE curl GL)
+    target_link_libraries(simbrief_hub PRIVATE curl)
     install(TARGETS simbrief_hub LIBRARY DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/simbrief_hub/lin_x64")
 endif()
 

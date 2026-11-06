@@ -425,7 +425,8 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
 
     LoadPrefs();
 
-    ImgWindowIni();
+    ImgWindow::Initialize();
+    UiLoadFonts();      // shared for UI and Airport Editor
 
     // map standard datarefs
     gear_fnrml_dr = XPLMFindDataRef("sim/flightmodel/forces/fnrml_gear");
@@ -555,7 +556,7 @@ PLUGIN_API void XPluginStop(void) {
     }
 
     ui = nullptr;
-    ImgWindowFini();
+    ImgWindow::Finalize();
     HttpGetFinalize();
 }
 

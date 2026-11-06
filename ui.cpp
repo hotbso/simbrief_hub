@@ -44,12 +44,12 @@ static constexpr int kWinHeight = 460;
 static constexpr int kWinPad = 75;
 static constexpr float kFontSize = 13.0f;
 
+ImFont* std_font;
 std::unique_ptr<ImgWindow> ui;
 int ui_left = -1, ui_top, ui_right, ui_bottom;  // -1 = not loaded from prefs
 
 // Our own class defining the UI
 class Ui : public ImgWindow {
-    XPLMFlightLoopID flt_id_ = nullptr;
     int ofp_seqno_ = 0;
     std::string out_, off_, tropo_, trip_time_, status_line_;
     ImVec4 field_color_ = ImColor(0.0f, 0.5f, 0.3f, 1.0f);
@@ -57,14 +57,24 @@ class Ui : public ImgWindow {
     // Main function: creates the window's UI
     void BuildInterface() override;
 
-    // flight loop callback for delayed actions prohibited in drawloops
-    static float FlightLoopCb(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter,
-                              void* inRefcon);
-
    public:
     Ui(int left, int top, int right, int bot);
     ~Ui() override;
 };
+
+void UiLoadFonts() {
+    ImFontAtlas* atlas = ImgWindow::GetSharedFontAtlas();
+    if (!atlas) {
+        LogMsg("UiLoadFonts: shared font atlas is not initialized");
+        return;
+    }
+
+    // load from X-Plane's default font directory
+    std_font = atlas->AddFontFromFileTTF("./Resources/fonts/DejaVuSans.ttf");
+    if (std_font == nullptr) {
+        LogMsg("Failed to load font DejaVuSans from file, falling back to default font");
+    }
+}
 
 void CreateUi() {
     if (ui_left == -1) {
@@ -82,38 +92,12 @@ void CreateUi() {
     ui = std::make_unique<Ui>(ui_left, ui_top, ui_right, ui_bottom);
 }
 
-void ImgWindowIni() {
-    LogMsg("Initializing Imgui Window...");
-    ImgWindow::sFontAtlas = std::make_shared<ImgFontAtlas>();
-
-    // load from X-Plane's default font directory
-    if (ImgWindow::sFontAtlas->AddFontFromFileTTF("./Resources/fonts/DejaVuSans.ttf", kFontSize) == nullptr) {
-        LogMsg("Failed to load font DejaVuSans from file, falling back to default font");
-    }
-
-    LogMsg("Imgui Window initialized");
-}
-
-void ImgWindowFini() {
-    ui = nullptr;  // just in case ...
-    ImgWindow::sFontAtlas.reset();
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////
 Ui::Ui(int left, int top, int right, int bot)
     : ImgWindow(left, top, right, bot, xplm_WindowDecorationRoundRectangle, xplm_WindowLayerFloatingWindows) {
-    // is currently not really supported, hopefully with 12.5
-    ImGui::GetIO().IniFilename = nullptr;  // strdup((user_cfg_dir + "imgui.ini").c_str());
 
-    // Create a flight loop id, but don't schedule it yet
-    XPLMCreateFlightLoop_t loop_params = {
-        sizeof(loop_params),                      // structSize
-        xplm_FlightLoop_Phase_BeforeFlightModel,  // phase
-        FlightLoopCb,                             // callbackFunc
-        (void*)this,                              // refcon
-    };
-
-    flt_id_ = XPLMCreateFlightLoop(&loop_params);
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FontSizeBase = kFontSize;
 
     SetWindowTitle("simbrief_hub " VERSION);
     SetWindowResizingLimits(100, 100, 1024, 1024);
@@ -122,8 +106,6 @@ Ui::Ui(int left, int top, int right, int bot)
 
 Ui::~Ui() {
     GetWindowGeometry(ui_left, ui_top, ui_right, ui_bottom);  // save geometry for next time
-    if (flt_id_)
-        XPLMDestroyFlightLoop(flt_id_);
 }
 
 void Ui::BuildInterface() {
@@ -314,13 +296,4 @@ void Ui::BuildInterface() {
             }
         }
     }
-}
-
-// Delayed actions that require FlightLoop context
-float Ui::FlightLoopCb(float, float, int, void* inRefcon) {
-    LogMsg("FlightLoopCb called with inRefcon={}", inRefcon);
-
-    // Ui& ui = *reinterpret_cast<Ui*>(inRefcon);
-
-    return 0.0f;
 }
