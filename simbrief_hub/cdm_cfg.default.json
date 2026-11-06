@@ -6,7 +6,7 @@ Check https://viffsys.com/
 Protocols:
 - viff: vIFF, https://api.viffsys.com/
 - rpuig: legacy protocol, https://aman.vatsimspain.es
-- vacdm_v1: legacy protocol used by France and China, https://cdm.vatsim.fr, https://vacdm.vatprc.net
+- vacdm_v1: legacy protocol used by France and China, https://vacdm.vatprc.net
 
 With vIFF getting more and more traction we list it first.
 If a flight is present in vIFF we take it, otherwise we fall back to the legacy protocols.
@@ -24,7 +24,7 @@ If a flight is present in vIFF we take it, otherwise we fall back to the legacy 
             "name": "France",
             "protocol": "vacdm_v1",
             "url": "https://cdm.vatsim.fr",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "China",
