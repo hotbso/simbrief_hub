@@ -77,7 +77,7 @@ void CreateUi() {
         ui_top = sc_top - kWinPad;
         ui_bottom = ui_top - kWinHeight;
     } else
-        LogMsg("Creating UI window with geometry %d,%d,%d,%d", ui_left, ui_top, ui_right, ui_bottom);
+        LogMsg("Creating UI window with geometry {},{},{},{}", ui_left, ui_top, ui_right, ui_bottom);
 
     ui = std::make_unique<Ui>(ui_left, ui_top, ui_right, ui_bottom);
 }
@@ -318,7 +318,7 @@ void Ui::BuildInterface() {
 
 // Delayed actions that require FlightLoop context
 float Ui::FlightLoopCb(float, float, int, void* inRefcon) {
-    LogMsg("FlightLoopCb called with inRefcon=%p", inRefcon);
+    LogMsg("FlightLoopCb called with inRefcon={}", inRefcon);
 
     // Ui& ui = *reinterpret_cast<Ui*>(inRefcon);
 

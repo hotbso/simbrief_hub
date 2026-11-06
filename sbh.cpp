@@ -99,7 +99,7 @@ static void FetchCdm(void);
 void SavePrefs() {
     std::ofstream f(pref_path);
     if (!f.is_open()) {
-        LogMsg("Can't create '%s'", pref_path.c_str());
+        LogMsg("Can't create '{}'", pref_path);
         return;
     }
 
@@ -109,7 +109,7 @@ void SavePrefs() {
 static void LoadPrefs() {
     std::ifstream f(pref_path);
     if (!f.is_open()) {
-        LogMsg("Can't open '%s'", pref_path.c_str());
+        LogMsg("Can't open '{}'", pref_path);
         return;
     }
 
@@ -132,7 +132,7 @@ bool CdmPollEnabled() {
             int n = XPLMGetDatab(xpilot_callsign_dr, buffer, 0, sizeof(buffer) - 1);
             buffer[n] = '\0';
             callsign = buffer;
-            LogMsg("xpilot is connected: '%s'", callsign.c_str());
+            LogMsg("xpilot is connected: '{}'", callsign);
         }
 
         xpilot_connected = connected;
@@ -163,7 +163,7 @@ static void FakeCdm() {
     if (ofp_info == nullptr)
         return;
 
-    LogMsg("Faking CDM airport '%s'", ofp_info->origin.c_str());
+    LogMsg("Faking CDM airport '{}'", ofp_info->origin);
     time_t out_time = atol(ofp_info->est_out.c_str());
     time_t off_time = atol(ofp_info->est_off.c_str());
 
@@ -196,7 +196,7 @@ bool OfpCheckAsyncDownload() {
         [[maybe_unused]] bool res = ofp_download_future.get();
         ofp_info = std::move(ofp_info_new);
 
-        LogMsg("OfpCheckAsyncDownload(): Download status: %s", ofp_info->status.c_str());
+        LogMsg("OfpCheckAsyncDownload(): Download status: {}", ofp_info->status);
         if (ofp_info->status != kSuccess) {
             return false;  // no download active
         }
@@ -227,7 +227,7 @@ bool CdmCheckAsyncDownload() {
 
         [[maybe_unused]] bool res = cdm_download_future.get();
 
-        LogMsg("CdmCheckAsyncDownload(): Download status: %s", cdm_info_new->status.c_str());
+        LogMsg("CdmCheckAsyncDownload(): Download status: {}", cdm_info_new->status);
         // do not overwrite a fake_cdm with a failed download
         if (pref_fake_cdm && cdm_info_new->status != kSuccess) {
             cdm_info_new = nullptr;  // discard failed real download
@@ -322,7 +322,7 @@ static float FlightLoopCb(float inElapsedSinceLastCall, [[maybe_unused]] float i
 
     bool enab = CdmPollEnabled();
     if (enab)  // limit logging for now
-        LogMsg("FlightLoopCB, now: %5.1f, cdm_next_poll_ts: %5.1f, air_time: %5.1f, enab: %d", now, cdm_next_poll_ts,
+        LogMsg("FlightLoopCB, now: {:5.1f}, cdm_next_poll_ts: {:5.1f}, air_time: {:5.1f}, enab: {}", now, cdm_next_poll_ts,
                air_time, enab);
 
     if (now > cdm_next_poll_ts && enab) {
@@ -458,7 +458,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
                 return 0;
 
             pref_fake_cdm = !pref_fake_cdm;
-            LogMsg("pref_fake_cdm set to %d", pref_fake_cdm);
+            LogMsg("pref_fake_cdm set to {}", pref_fake_cdm);
             XPLMCheckMenuItem(sbh_menu, fake_cdm_item, pref_fake_cdm ? xplm_Menu_Checked : xplm_Menu_Unchecked);
             if (pref_fake_cdm)
                 FakeCdm();
@@ -539,7 +539,7 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     if (cs) {
         fake_xpilot = true;
         callsign = cs;
-        LogMsg("fake callsign set to '%s'", callsign.c_str());
+        LogMsg("fake callsign set to '{}'", callsign);
     }
 
     XPLMScheduleFlightLoop(flight_loop_id, 1.0f, 1);
@@ -580,7 +580,7 @@ PLUGIN_API void XPluginReceiveMessage([[maybe_unused]] XPLMPluginID in_from, lon
             init_done = true;
             xpilot_status_dr = XPLMFindDataRef("xpilot/login/status");
             xpilot_callsign_dr = XPLMFindDataRef("xpilot/login/callsign");
-            LogMsg("%s", xpilot_status_dr ? "xPilot is installed" : "xPilot is not installed, CDM disabled");
+            LogMsg("{}", xpilot_status_dr ? "xPilot is installed" : "xPilot is not installed, CDM disabled");
         }
 
         FetchOfp();

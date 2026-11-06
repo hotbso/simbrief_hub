@@ -125,7 +125,7 @@ class CdmServer_vacdm: public CdmServer {
 // some helpers
 //
 void CdmInfo::Dump() const {
-#define L(field) LogMsg(#field ": %s", field.c_str())
+#define L(field) LogMsg(#field ": {}", field)
     L(status);
     L(url);
 
@@ -147,24 +147,24 @@ json GetJson(const std::string& url) {
     bool res = HttpGet(url, data, 10);
 
     if (!res) {
-        LogMsg("Can't retrieve from '%s'", url.c_str());
+        LogMsg("Can't retrieve from '{}'", url);
         return json();
     }
 
     int len = data.length();
     if (len == 0) {
-        LogMsg("Empty response from '%s'", url.c_str());
+        LogMsg("Empty response from '{}'", url);
         return json();
     }
 
-    LogMsg("got data %d bytes", len);
+    LogMsg("got data {} bytes", len);
 
     try {
         json data_obj = json::parse(data);
         // LogMsgRaw(data_obj.dump(4));
         return data_obj;
     } catch (const std::exception& e) {
-        LogMsg("Invalid json from '%s': %s", url.c_str(), e.what());
+        LogMsg("Invalid json from '{}': {}", url, e.what());
     }
 
     return json();
@@ -189,13 +189,13 @@ bool CdmServer_rpuig::RetrieveAirports() {
     if (retrieved_)
         return true;
 
-    LogMsg("Loading airports for '%s' url: '%s'", name_.c_str(), url_.c_str());
+    LogMsg("Loading airports for '{}' url: '{}'", name_, url_);
 
     const std::string api_url = url_ + "/CDM_feeds.json";
 
     json data_obj = GetJson(api_url);
     if (data_obj.is_null()) {
-        LogMsg("Can't retrieve from '%s', retries left: %d", api_url.c_str(), --retries_left_);
+        LogMsg("Can't retrieve from '{}', retries left: {}", api_url, --retries_left_);
         return false;
     }
 
@@ -203,10 +203,10 @@ bool CdmServer_rpuig::RetrieveAirports() {
         const auto& airport_obj = data_obj.at("airports");
         for (auto const& [icao, url_list] : airport_obj.items()) {
             arpt_urls_[icao] = url_list[0].get<std::string>();
-            LogMsg("  '%s'", icao.c_str());
+            LogMsg("  '{}'", icao);
         }
     } catch (const std::exception& e) {
-        LogMsg("Invalid airport data: '%s'", e.what());
+        LogMsg("Invalid airport data: '{}'", e.what());
         return false;
     }
 
@@ -246,14 +246,14 @@ bool CdmServer_rpuig::CdmGetParse(const std::string& arpt_icao, const std::strin
                 EXTRACT(runway);
                 EXTRACT(sid);
                 cdm_info.status = kSuccess;
-                LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), cdm_info.url.c_str());
+                LogMsg("CDM data for flight '{}' retrieved from '{}'", callsign, cdm_info.url);
                 return true;
 #undef EXTRACT
             }
         }
-        LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+        LogMsg("flight '{}' not present on '{}'", callsign, arpt_icao);
     } catch (const std::exception& e) {
-        LogMsg("Exception: '%s'", e.what());
+        LogMsg("Exception: '{}'", e.what());
     }
 
     cdm_info.status = "Flight not found";
@@ -273,7 +273,7 @@ bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string
     json flight_obj = GetJson(cdm_info.url);
     if (flight_obj.is_null()) {
         cdm_info.status = "Failed to retrieve CDM data";
-        LogMsg("flight '%s' not present on vIFF server'%s'", callsign.c_str(), name().c_str());
+        LogMsg("flight '{}' not present on vIFF server'{}'", callsign, name());
         return false;
     }
 
@@ -281,7 +281,7 @@ bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string
         const auto& dep = flight_obj.at("departure").get<std::string>();
         if (dep != arpt_icao) {
             cdm_info.status = "Flight not departing from this airport";
-            LogMsg("flight '%s' departs from '%s', not from '%s'", callsign.c_str(), dep.c_str(), arpt_icao.c_str());
+            LogMsg("flight '{}' departs from '{}', not from '{}'", callsign, dep, arpt_icao);
             return false;
         }
 
@@ -324,7 +324,7 @@ bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string
                 res = true;
             } else
                 cdm_info.status = "CDM data not available";
-            LogMsg("CDM data for flight '%s' on vIFF server found but is empty", callsign.c_str());
+            LogMsg("CDM data for flight '{}' on vIFF server found but is empty", callsign);
             return res;
         }
 
@@ -335,10 +335,10 @@ bool CdmServer_viff::CdmGetParse(const std::string& arpt_icao, const std::string
         }
 
         cdm_info.status = kSuccess;
-        LogMsg("CDM data for flight '%s' retrieved from '%s'", callsign.c_str(), cdm_info.url.c_str());
+        LogMsg("CDM data for flight '{}' retrieved from '{}'", callsign, cdm_info.url);
         return true;
     } catch (const std::exception& e) {
-        LogMsg("Exception: '%s'", e.what());
+        LogMsg("Exception: '{}'", e.what());
     }
 
     cdm_info.status = "Flight not found";
@@ -353,13 +353,13 @@ bool CdmServer_vacdm::RetrieveAirports() {
     if (retrieved_)
         return true;
 
-    LogMsg("Loading airports for '%s' url: '%s'", name_.c_str(), url_.c_str());
+    LogMsg("Loading airports for '{}' url: '{}'", name_, url_);
 
     std::string api_url = url_ + "/api/v1/airports";
 
     json data_obj = GetJson(api_url);
     if (data_obj.is_null()) {
-        LogMsg("Can't retrieve from '%s', retries left: %d", api_url.c_str(), --retries_left_);
+        LogMsg("Can't retrieve from '{}', retries left: {}", api_url, --retries_left_);
         return false;
     }
 
@@ -367,10 +367,10 @@ bool CdmServer_vacdm::RetrieveAirports() {
         for (auto const& a : data_obj) {
             auto icao = a.at("icao").get<std::string>();
             airports_[icao] = true;
-            LogMsg("  '%s'", icao.c_str());
+            LogMsg("  '{}'", icao);
         }
     } catch (const std::exception& e) {
-        LogMsg("Invalid airport data: '%s'", e.what());
+        LogMsg("Invalid airport data: '{}'", e.what());
         return false;
     }
 
@@ -407,14 +407,14 @@ bool CdmServer_vacdm::CdmGetParse(const std::string& arpt_icao, const std::strin
         cdm_info.status = kSuccess;
         return true;
     } catch (const json::out_of_range& e) {
-        LogMsg("JSON key not found: '%s'", e.what());
+        LogMsg("JSON key not found: '{}'", e.what());
         cdm_info.status = "Flight not found";
     } catch (const std::exception& e) {
-        LogMsg("Exception: '%s'", e.what());
+        LogMsg("Exception: '{}'", e.what());
         cdm_info.status = e.what();
     }
 
-    LogMsg("flight '%s' not present on '%s'", callsign.c_str(), arpt_icao.c_str());
+    LogMsg("flight '{}' not present on '{}'", callsign, arpt_icao);
 
     cdm_info.status = "Flight not found";
     return false;
@@ -441,7 +441,7 @@ bool CdmInit(const std::string& cfg_path) {
 
     auto mm_pos = content.find("#&*!");
     if (mm_pos == std::string::npos) {
-        LogMsg("Magic marker not found in '%s'", cfg_path.c_str());
+        LogMsg("Magic marker not found in '{}'", cfg_path.c_str());
         return false;
     }
 
@@ -453,12 +453,12 @@ bool CdmInit(const std::string& cfg_path) {
         for (const auto& s : cfg.at("servers").get<json::array_t>()) {
             const auto& name = s.at("name").get<std::string>();
             if (!s.at("enabled").get<bool>()) {
-                LogMsg("CdmServer '%s' is disabled, skipping", name.c_str());
+                LogMsg("CdmServer '{}' is disabled, skipping", name);
                 continue;
             }
             const auto& protocol = s.at("protocol").get<std::string>();
             const auto& url = s.at("url").get<std::string>();
-            LogMsg("server: '%s', protocol: '%s', url: '%s'", name.c_str(), protocol.c_str(), url.c_str());
+            LogMsg("server: '{}', protocol: '{}', url: '{}'", name, protocol, url);
 
             if (protocol == "rpuig")
                 cdm_servers.push_back(std::make_unique<CdmServer_rpuig>(name, url));
@@ -472,7 +472,7 @@ bool CdmInit(const std::string& cfg_path) {
             }
         }
     } catch (const std::exception& e) {
-        LogMsg("Exception: '%s'", e.what());
+        LogMsg("Exception: '{}'", e.what());
         return false;
     }
     return true;
@@ -484,14 +484,14 @@ bool CdmGetParse(const std::string& arpt_icao, const std::string& callsign, std:
     cdm_info = std::make_unique<CdmInfo>();
 
     if (cache.idx >= 0 && cache.arpt_icao == arpt_icao && cache.callsign == callsign) {
-        LogMsg("Cache hit for '%s' '%s' on server '%s'", arpt_icao.c_str(), callsign.c_str(), cdm_servers[cache.idx]->name().c_str());
+        LogMsg("Cache hit for '{}' '{}' on server '{}'", arpt_icao, callsign, cdm_servers[cache.idx]->name());
         return cdm_servers[cache.idx]->CdmGetParse(arpt_icao, callsign, *cdm_info);
     }
 
     for (auto i = 0; i < (int)cdm_servers.size(); i++) {
         auto& s = cdm_servers[i];
         if (s->is_dead()) {
-            LogMsg("CdmServer '%s' is dead, skipping", s->name().c_str());
+            LogMsg("CdmServer '{}' is dead, skipping", s->name());
             continue;
         }
 

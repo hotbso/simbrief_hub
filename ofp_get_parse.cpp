@@ -35,7 +35,7 @@ static int seqno;
 
 void OfpInfo::Dump() const {
     if (status == "Success") {
-#define L(field) LogMsg(#field ": %s", field.c_str())
+#define L(field) LogMsg(#field ": {}", field)
         L(units);
         L(icao_airline);
         L(flight_number);
@@ -68,7 +68,7 @@ void OfpInfo::Dump() const {
         L(max_tow);
         L(dx_rmk);
     } else
-        LogMsg("%s", status.c_str());
+        LogMsg("{}", status);
 #undef L
 }
 
@@ -80,7 +80,7 @@ static void Extract(const json& field, std::string& str) {
 
 bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info) {
     std::string url = "https://www.simbrief.com/api/xml.fetcher.php?userid=" + pilot_id + "&json=1";
-    // LogMsg("%s", url);
+    // LogMsg("{}", url);
 
     ofp_info = std::make_unique<OfpInfo>();
 
@@ -94,13 +94,13 @@ bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info
         return false;
     }
 
-    LogMsg("got ofp json %d bytes", (int)json_str.length());
+    LogMsg("got ofp json {} bytes", (int)json_str.length());
     json data_obj;
     try {
         data_obj = json::parse(json_str);
         //LogMsgRaw(data_obj.dump(4));
     } catch (const std::exception& e) {
-        LogMsg("Invalid json from '%s': %s", url.c_str(), e.what());
+        LogMsg("Invalid json from '{}': {}", url, e.what());
         ofp_info->status = "Invalid JSON data";
         ofp_info->stale = true;
         return false;
@@ -182,7 +182,7 @@ bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info
         Extract(times.at("est_on"), ofp_info->est_on);
         Extract(times.at("est_in"), ofp_info->est_in);
     } catch (const std::exception& e) {
-        LogMsg("error during JSON parsing: '%s'", e.what());
+        LogMsg("error during JSON parsing: '{}'", e.what());
         ofp_info->status = "Invalid JSON data";
         ofp_info->stale = true;
 
@@ -195,7 +195,7 @@ bool OfpGetParse(const std::string& pilot_id, std::unique_ptr<OfpInfo>& ofp_info
 
     ofp_info->stale = false;
     ofp_info->seqno = ++seqno;
-    LogMsg("OfpGetParse() success, seqno %d", ofp_info->seqno);
+    LogMsg("OfpGetParse() success, seqno {}", ofp_info->seqno);
     return true;
 }
 
@@ -223,13 +223,13 @@ int main(int argc, char** argv) {
 
     ofp_info->Dump();
     time_t tg = atol(ofp_info->time_generated.c_str());
-    LogMsg("tg %ld", (long)tg);
+    LogMsg("tg {}", tg);
 
     auto tm = *std::gmtime(&tg);
     char line[100];
     snprintf(line, sizeof(line), "OFP generated at %4d-%02d-%02d %02d:%02d:%02d UTC", tm.tm_year + 1900, tm.tm_mon + 1,
              tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    LogMsg("'%s'", line);
+    LogMsg("{}", line);
 
     HttpGetFinalize();
     exit(0);
