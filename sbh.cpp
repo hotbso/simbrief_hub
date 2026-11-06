@@ -54,7 +54,7 @@ static constexpr float kAirtimeForArrival = 300.0f;  // s, airtime > this means 
 static XPLMMenuID sbh_menu;
 static int fake_cdm_item;
 
-static XPLMDataRef acf_icao_dr, total_running_time_sec_dr, num_engines_dr, eng_running_dr, gear_fnrml_dr;
+static XPLMDataRef total_running_time_sec_dr, num_engines_dr, eng_running_dr, gear_fnrml_dr;
 static XPLMDataRef xpilot_status_dr, xpilot_callsign_dr;
 
 static XPLMFlightLoopID flight_loop_id;
@@ -428,7 +428,6 @@ PLUGIN_API int XPluginStart(char* out_name, char* out_sig, char* out_desc) {
     ImgWindowIni();
 
     // map standard datarefs
-    acf_icao_dr = XPLMFindDataRef("sim/aircraft/view/acf_ICAO");
     gear_fnrml_dr = XPLMFindDataRef("sim/flightmodel/forces/fnrml_gear");
     total_running_time_sec_dr = XPLMFindDataRef("sim/time/total_running_time_sec");
     num_engines_dr = XPLMFindDataRef("sim/aircraft/engine/acf_num_engines");
