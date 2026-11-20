@@ -1,6 +1,6 @@
 Order matters!
 
-Most European airports are now served by vIFF.
+Most airports are now served by vIFF.
 Check https://viffsys.com/
 
 Protocols:
@@ -19,12 +19,6 @@ If a flight is present in vIFF we take it, otherwise we fall back to the legacy 
             "protocol": "viff",
             "url": "https://api.viffsys.com",
             "enabled": true
-        },
-        {
-            "name": "France",
-            "protocol": "vacdm_v1",
-            "url": "https://cdm.vatsim.fr",
-            "enabled": false
         },
         {
             "name": "China",
